@@ -7,7 +7,8 @@ from utils.q_learning import QLearningModel
 
 class AStarQAgent(BaseAgent):
     def __init__(self, start_pos, goal_pos):
-        super().__init__(start_pos, goal_pos, color=(41, 128, 185))  # Xe màu Xanh Dương độc lập
+        super().__init__(start_pos, goal_pos, color=(41, 128, 185))  # Xe màu Xanh Dương
+        self.original_hospital_pos = start_pos  # --- FIX: Ghi nhớ vĩnh viễn tọa độ trạm gốc ---
         self.q_brain = QLearningModel()
         self.calculated_path = []
         self.path_index = 0
@@ -17,6 +18,7 @@ class AStarQAgent(BaseAgent):
         return abs(pos[0] - self.goal_pos[0]) + abs(pos[1] - self.goal_pos[1])
 
     def search_path_with_q(self, grid_map):
+        """Hàm tìm đường A* quét lại toàn bộ bản đồ tại thời điểm gọi"""
         start, goal = self.start_pos, self.goal_pos
         open_set = []
         heapq.heappush(open_set, (0 + self.heuristic(start), 0, start, [start]))
@@ -38,7 +40,7 @@ class AStarQAgent(BaseAgent):
                     new_g = g + base_cost + q_penalty
                     new_f = new_g + self.heuristic(neighbor)
                     heapq.heappush(open_set, (new_f, new_g, neighbor, path + [neighbor]))
-        return [start]
+        return [start]  # Trả về vị trí đứng im nếu bị kẹt cứng mọi đường
 
     def update_astar_return_logic(self, grid_map, app_instance):
         if self.is_finished: return
@@ -47,31 +49,36 @@ class AStarQAgent(BaseAgent):
             self.path_index += 1
             self.move_to(self.calculated_path[self.path_index])
         else:
-            # GIAI ĐOẠN 1: Đón bệnh nhân tại điểm tai nạn
+            # GIAI ĐOẠN 1: Tới hiện trường tai nạn
             if not self.is_returning:
                 self.is_returning = True
                 if self.goal_pos in grid_map.accidents_pool:
                     grid_map.accidents_pool.remove(self.goal_pos)
                     grid_map.grid[self.goal_pos[0]][self.goal_pos[1]] = config.STATE_EMPTY
 
-                # Dọn sạch vết lộ trình lúc đi, chỉ giữ lại điểm hiện tại để vẽ đường về
+                # Dọn vết xe đi
                 self.path = [self.current_pos]
 
-                # Quay đầu xe: Lật ngược mảng hành trình chạy lui về trạm viện xuất phát
-                self.calculated_path = self.calculated_path[::-1]
-                self.path_index = 0
-            else:
-                # GIAI ĐOẠN 2: Tháp tùng bệnh nhân nhập viện thành công
-                self.is_finished = True
-                self.path.clear()  # Xóa hoàn toàn vệt đường đi về trên bản đồ
+                # --- ĐÃ FIX LOGIC: KHÔNG CHẠY NGƯỢC MẢNG LƯỜI BIẾNG NỮA ---
+                # Đổi vai trò: Điểm đứng hiện tại thành Điểm xuất phát, Trạm gốc thành Đích đến
+                self.start_pos = self.current_pos
+                self.goal_pos = self.original_hospital_pos
 
-                # Quét động tìm trạm bệnh viện trùng với tọa độ xuất phát ban đầu để cộng trả xe
+                # Gọi hệ thống quét radar bản đồ lại từ đầu để tìm đường về an toàn nhất (né tường/kẹt xe mới)
+                self.calculated_path = self.search_path_with_q(grid_map)
+                self.path_index = 0
+
+            else:
+                # GIAI ĐOẠN 2: Về tới bệnh viện
+                self.is_finished = True
+                self.path.clear()
+
                 found_hospital = None
                 for h_name, h_info in app_instance.dispatcher.hospitals.items():
-                    if h_info["pos"] == self.start_pos:
+                    if h_info["pos"] == self.original_hospital_pos:
                         found_hospital = h_name
                         break
 
                 if found_hospital and found_hospital in app_instance.dispatcher.current_cars:
                     app_instance.dispatcher.current_cars[found_hospital] += 1
-                    print(f"[HE THONG] Xe A* da ve tram! {found_hospital} duoc hoi lai 1 xe.")
+                    app_instance.logger.add_log(f"[STATION] Xe A* returned, fleet recovered at {found_hospital}.")
