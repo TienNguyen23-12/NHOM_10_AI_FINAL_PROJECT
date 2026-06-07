@@ -186,4 +186,4 @@ Q-Learning hyperparameters are set in `utils/q_learning.py`:
 
 ## License
 
-This project was developed for academic purposes as a final assignment for the Artificial Intelligence course at HCMUTE.
+This project was developed for academic purposes as a final assignment for the Artificial Intelligence course at HCM-UTE.

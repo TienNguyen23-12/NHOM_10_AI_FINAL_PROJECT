@@ -12,6 +12,11 @@ class UIManager:
         self.sim_buttons = []
         self.brush_buttons = []
         self.inspect_buttons = []
+        self.map_buttons = []
+
+        # Biến lưu trữ độ lệch của thanh cuộn cột giữa
+        self.controls_scroll_y = 0
+
         self.reposition_buttons()
 
     def reposition_buttons(self):
@@ -29,23 +34,42 @@ class UIManager:
             Button(455, ui_y, 120, 35, "Clear Map & Reset")
         ]
 
-        # --- ĐÃ FIX CƠ CHẾ RESPONSIVE: Neo vị trí vào mép phải màn hình ---
+        # Khởi tạo các nút điều khiển lần đầu
         btn_x = self.window_width - 590
         btn_w = 155
 
-        self.brush_buttons = [
-            Button(btn_x, 35, btn_w, 32, "Brush: Accident"),
-            Button(btn_x, 75, btn_w, 32, "Brush: Hospital"),
-            Button(btn_x, 115, btn_w, 32, "Brush: Block Wall"),
-            Button(btn_x, 155, btn_w, 32, "Brush: Traffic Jam"),
-            Button(btn_x, 195, btn_w, 32, "Eraser: Clear Cell")
-        ]
+        # Tạo placeholder, tọa độ Y thực tế sẽ do update_controls_layout lo
+        self.brush_buttons = [Button(btn_x, 0, btn_w, 32, t) for t in
+                              ["Brush: Accident", "Brush: Hospital", "Brush: Block Wall", "Brush: Traffic Jam",
+                               "Eraser: Clear Cell"]]
+        self.inspect_buttons = [Button(btn_x, 0, btn_w, 32, t) for t in
+                                ["View Live Q-Table", "View Live H-Table", "View Active Routes", "Save Model (JSON)",
+                                 "Load Model (JSON)", "Visualizer: OFF"]]
+        self.map_buttons = [Button(btn_x, 0, btn_w, 32, t) for t in
+                            ["Save Map (JSON)", "Load Map (JSON)", "Expand Map (+5)", "Shrink Map (-5)"]]
 
-        self.inspect_buttons = [
-            Button(btn_x, 260, btn_w, 32, "View Live Q-Table"),
-            Button(btn_x, 300, btn_w, 32, "View Live H-Table"),
-            Button(btn_x, 340, btn_w, 32, "View Active Routes")
-        ]
+        self.update_controls_layout()
+
+    def update_controls_layout(self):
+        """Cập nhật lại tọa độ Y của tất cả các nút dựa vào thao tác cuộn chuột"""
+        sy = self.controls_scroll_y
+
+        # ĐÃ FIX: Giãn cách các nhóm nút ra cho dễ nhìn
+        brush_y = 40
+        ai_y = brush_y + (5 * 40) + 30  # Nhóm AI cách nhóm Brush 30px
+        map_y = ai_y + (6 * 40) + 30  # Nhóm Map cách nhóm AI 30px
+
+        for i, btn in enumerate(self.brush_buttons):
+            btn.y = brush_y + i * 40 + sy
+            if hasattr(btn, 'rect'): btn.rect.y = btn.y
+
+        for i, btn in enumerate(self.inspect_buttons):
+            btn.y = ai_y + i * 40 + sy
+            if hasattr(btn, 'rect'): btn.rect.y = btn.y
+
+        for i, btn in enumerate(self.map_buttons):
+            btn.y = map_y + i * 40 + sy
+            if hasattr(btn, 'rect'): btn.rect.y = btn.y
 
     def update_button_states(self, current_mode, brush_mode):
         for btn in self.sim_buttons:
@@ -65,7 +89,11 @@ class UIManager:
             else:
                 btn.is_active = False
 
-    def draw_all(self, screen, font):
-        for btn in self.sim_buttons: btn.draw(screen, font)
+    def draw_controls(self, screen, font):
+        """Chỉ vẽ cột điều khiển (Để SimulationApp dùng Clipping cắt viền)"""
         for btn in self.brush_buttons: btn.draw(screen, font)
         for btn in self.inspect_buttons: btn.draw(screen, font)
+        for btn in self.map_buttons: btn.draw(screen, font)
+
+    def draw_sim_buttons(self, screen, font):
+        for btn in self.sim_buttons: btn.draw(screen, font)
