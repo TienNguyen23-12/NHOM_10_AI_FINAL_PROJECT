@@ -10,28 +10,27 @@ class InspectorPanel:
         self.height = height
         self.display_mode = "WELCOME"
         self.inspect_data = []
-
-        # Biến xử lý thanh cuộn
         self.scroll_y = 0
         self.max_scroll = 0
 
     def handle_event(self, event):
-        """Bắt sự kiện lăn chuột (Scroll) khi trỏ vào bảng Monitor"""
         if event.type == pygame.MOUSEWHEEL:
             mx, my = pygame.mouse.get_pos()
             if self.x <= mx <= self.x + self.width and self.y <= my <= self.y + self.height:
-                self.scroll_y += event.y * 25  # Tốc độ cuộn
+                self.scroll_y += event.y * 25
                 if self.scroll_y > 0: self.scroll_y = 0
                 if self.scroll_y < -self.max_scroll: self.scroll_y = -self.max_scroll
 
     def set_welcome(self):
-        self.display_mode = "WELCOME";
-        self.scroll_y = 0
+        if self.display_mode != "WELCOME": self.scroll_y = 0
+        self.display_mode = "WELCOME"
         self.inspect_data = ["Click any inspection button above", "to stream live AI internal metrics."]
 
     def load_q_table(self, q_table):
-        self.display_mode = "Q_TABLE";
-        self.scroll_y = 0
+        # ĐÃ FIX: Chỉ reset thanh cuộn khi đổi từ bảng khác sang Q_TABLE
+        if self.display_mode != "Q_TABLE": self.scroll_y = 0
+
+        self.display_mode = "Q_TABLE"
         self.inspect_data = ["--- LIVE BACKEND Q-TABLE METRICS ---"]
         if not q_table:
             self.inspect_data.append("No learned Q-weights in memory yet.")
@@ -41,8 +40,10 @@ class InspectorPanel:
             self.inspect_data.append(f"Cell {state} -> Q:{rounded_v}")
 
     def load_h_table(self, active_agents):
-        self.display_mode = "H_TABLE";
-        self.scroll_y = 0
+        # ĐÃ FIX: Tương tự cho H-Table
+        if self.display_mode != "H_TABLE": self.scroll_y = 0
+
+        self.display_mode = "H_TABLE"
         self.inspect_data = ["--- LIVE LRTA* HEURISTIC FIELDS ---"]
         lrta_cars = [a for a in active_agents if hasattr(a, 'h_table')]
         if not lrta_cars:
@@ -54,8 +55,10 @@ class InspectorPanel:
                 self.inspect_data.append(f"  Node {state} -> H: {round(h_val, 1)}")
 
     def load_paths(self, active_agents):
-        self.display_mode = "PATHS";
-        self.scroll_y = 0
+        # ĐÃ FIX: Tương tự cho bảng Routes
+        if self.display_mode != "PATHS": self.scroll_y = 0
+
+        self.display_mode = "PATHS"
         self.inspect_data = ["--- ACTIVE MISSION PATH ROUTING ---"]
         if not active_agents:
             self.inspect_data.append("Fleet is currently stationed at depots.")
@@ -70,7 +73,11 @@ class InspectorPanel:
         pygame.draw.rect(screen, (248, 249, 250), (self.x, self.y, self.width, self.height), border_radius=6)
         pygame.draw.rect(screen, (220, 224, 230), (self.x, self.y, self.width, self.height), 1, border_radius=6)
 
-        # Tạo vùng Clip (Mặt nạ cắt) để chữ cuộn không bị tràn ra ngoài viền bảng
+        # ĐÃ FIX: Tính toán Max Scroll sớm để ép thanh cuộn không bị trôi tuột khi danh sách thay đổi kích thước
+        total_content_height = len(self.inspect_data) * 20 + 24
+        self.max_scroll = max(0, total_content_height - self.height)
+        if self.scroll_y < -self.max_scroll: self.scroll_y = -self.max_scroll
+
         old_clip = screen.get_clip()
         screen.set_clip(pygame.Rect(self.x, self.y, self.width, self.height))
 
@@ -82,15 +89,10 @@ class InspectorPanel:
 
             surf = current_font.render(text, True, color)
             screen.blit(surf, (self.x + 12, y_offset))
-            y_offset += 20  # Khoảng cách dòng khi cuộn
+            y_offset += 20
 
         screen.set_clip(old_clip)
 
-        # Tính toán độ dài tối đa của thanh cuộn
-        total_content_height = len(self.inspect_data) * 20 + 24
-        self.max_scroll = max(0, total_content_height - self.height)
-
-        # Vẽ thanh cuộn đồ họa bên mép phải nếu nội dung vượt quá khung hiển thị
         if self.max_scroll > 0:
             bar_height = max(20, self.height * (self.height / total_content_height))
             bar_y = self.y + (-self.scroll_y / self.max_scroll) * (self.height - bar_height)
