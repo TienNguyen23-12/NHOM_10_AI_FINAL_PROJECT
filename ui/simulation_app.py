@@ -34,7 +34,7 @@ class SimulationApp:
         config.HOSPITAL_CONFIG.clear()
 
         self.ui_mgr = UIManager(self.window_width, self.window_height)
-        self.logger = LoggerPanel(15, self.window_height - 115, 560, 85)
+        self.logger = LoggerPanel(15, self.window_height - 110, 550, 80)
 
         monitor_x = self.window_width - 415
         self.monitor = InspectorPanel(monitor_x, 35, 400, self.window_height - 200)
@@ -45,6 +45,7 @@ class SimulationApp:
         self.dispatcher.reset_resources()
 
         self.active_agents = []
+        self.is_paused = False
         self.current_mode = config.MODE_ASTAR_Q
         self.current_hour = 12
         self.brush_mode = 'ACCIDENT'
@@ -60,6 +61,7 @@ class SimulationApp:
 
         self.fleet_scroll_x = 0
         self.max_fleet_scroll = 0
+
         self.controls_scroll_y = 0
         self.max_controls_scroll = 0
 
@@ -67,11 +69,36 @@ class SimulationApp:
         self.sim_timer = 0
         self.vis_timer = 0
 
-        # Biến quản lý trạng thái của luồng Tổng đài
         self.dispatch_generator = None
         self.dispatch_vis_data = None
 
         self.ui_mgr.update_button_states(self.current_mode, self.brush_mode)
+
+    def run(self):
+        dt = 0
+        while self.handle_events():
+            if self.app_state == 'MENU':
+                self.screen.fill((44, 62, 80))
+                self.screen.blit(self.font_large.render("MULTI-AGENT EMERGENCY DISPATCH SYSTEM", True, (241, 196, 15)),
+                                 (self.window_width // 2 - 250, self.window_height // 2 - 80))
+                for btn in self.ui_mgr.menu_buttons: btn.draw(self.screen, self.font)
+
+            elif self.app_state == 'SIMULATION':
+                if not self.is_paused:
+                    is_visualizing = self.update_visualizer(dt)
+
+                    self.sim_timer += dt
+                    if self.sim_timer >= 200:
+                        if not is_visualizing:
+                            self.update_simulation()
+                        self.sim_timer = 0
+
+                self.draw_simulation()
+
+            pygame.display.flip()
+            dt = self.clock.tick(30)
+
+        pygame.quit()
 
     def handle_events(self):
         for event in pygame.event.get():
@@ -82,7 +109,8 @@ class SimulationApp:
                 self.screen = pygame.display.set_mode((self.window_width, self.window_height), pygame.RESIZABLE)
                 self.ui_mgr.window_width, self.ui_mgr.window_height = event.w, event.h
                 self.ui_mgr.reposition_buttons()
-                self.logger.y = self.window_height - 115
+
+                self.logger.y = self.window_height - 110
                 self.monitor.x = self.window_width - 415
                 self.monitor.height = self.window_height - 200
                 continue
@@ -202,9 +230,43 @@ class SimulationApp:
                     if self.monitor.display_mode == "Q_TABLE":
                         self.monitor.load_q_table(self.global_q_brain.q_table)
                 elif "Visualizer" in btn.text:
+                    # --- ĐÃ FIX: Logic chuyển đổi ON/OFF Visualizer thông minh ---
                     self.visualize_search = not self.visualize_search
                     btn.text = "Visualizer: ON" if self.visualize_search else "Visualizer: OFF"
                     btn.is_active = self.visualize_search
+
+                    if not self.visualize_search:
+                        # Nếu người dùng tắt Visualizer đi khi Tổng đài đang quét thầu -> Ép vòng lặp chạy hết lập tức
+                        if self.dispatch_generator:
+                            try:
+                                while True:
+                                    open_set, visited, current_path, h_name, is_done = next(self.dispatch_generator)
+                                    if is_done and h_name and current_path:
+                                        agent = AStarQAgent(config.HOSPITAL_CONFIG[h_name]["pos"], current_path[
+                                            -1]) if self.current_mode == config.MODE_ASTAR_Q else LRTALearningAgent(
+                                            config.HOSPITAL_CONFIG[h_name]["pos"], current_path[-1])
+                                        agent.calculated_path = current_path
+                                        self.active_agents.append(agent)
+                                        self.dispatcher.current_cars[h_name] -= 1
+                                        self.logger.add_log(f"-> [DISPATCH] Xả đệm: Đã chốt xe từ trạm {h_name}.")
+                                        break
+                            except StopIteration:
+                                pass
+                            self.dispatch_generator = None
+                            self.dispatch_vis_data = None
+
+                        # Ép các Agent đang chạy dở bước tìm kiếm A* hoàn thành ngay lộ trình
+                        for agent in self.active_agents:
+                            if hasattr(agent, 'search_generator') and agent.search_generator:
+                                try:
+                                    while True:
+                                        open_set, visited, current_path, is_done = next(agent.search_generator)
+                                        if is_done:
+                                            agent.calculated_path = current_path
+                                            break
+                                except StopIteration:
+                                    pass
+                                agent.search_generator = None
 
     def process_map_button_clicks(self, mouse_pos):
         for btn in self.ui_mgr.map_buttons:
@@ -286,6 +348,38 @@ class SimulationApp:
         config.GRID_SIZE = new_size
         self.logger.add_log(f"[SYSTEM] Kích thước lưới bản đồ được điều chỉnh thành {new_size}x{new_size}.")
 
+    def process_sim_button_clicks(self, mouse_pos):
+        for btn in self.ui_mgr.sim_buttons:
+            if btn.is_clicked(mouse_pos):
+                if btn.mode_id in [config.MODE_ASTAR_Q, config.MODE_LRTASTAR_Q]:
+                    self.current_mode = btn.mode_id
+                    self.ui_mgr.update_button_states(self.current_mode, self.brush_mode)
+                    self.logger.add_log(
+                        f"[SYSTEM] Switched execution to: {'A* + Q' if self.current_mode == config.MODE_ASTAR_Q else 'LRTA* + Q'}")
+                elif "Hour" in btn.text:
+                    self.current_hour = 17 if self.current_hour == 12 else 12
+                    btn.text = "Standard Hour (12h)" if self.current_hour == 17 else "Rush Hour (17h)"
+                    btn.is_active = (self.current_hour == 17)
+                    self.env.set_traffic_jam(self.current_hour)
+                    self.logger.add_log(f"[TRAFFIC] Timetable altered to {self.current_hour}h00.")
+                # --- ĐÃ FIX: Logic khóa từ khóa động tránh lỗi đóng băng nút Stop/Resume ---
+                elif "Stop" in btn.text or "Resume" in btn.text or "STOPPED" in btn.text:
+                    self.is_paused = not self.is_paused
+                    btn.text = "STOPPED" if self.is_paused else "Stop/Resume"
+                    btn.is_active = self.is_paused
+                    self.logger.add_log(f"[SYSTEM] Simulation {'PAUSED' if self.is_paused else 'RESUMED'}.")
+                elif "Clear Map" in btn.text:
+                    self.active_agents.clear();
+                    self.env.accidents_pool.clear();
+                    config.HOSPITAL_CONFIG.clear()
+                    self.dispatcher.reset_resources();
+                    self.env.grid = [[config.STATE_EMPTY for _ in range(config.GRID_SIZE)] for _ in
+                                     range(config.GRID_SIZE)]
+                    self.app_state = 'MENU';
+                    self.ui_mgr.reposition_buttons();
+                    self.monitor.set_welcome()
+                    self.fleet_scroll_x = 0
+
     def handle_grid_click(self, mouse_pos):
         adj_x = (mouse_pos[0] - self.pan_offset_x) / self.zoom_scale
         adj_y = (mouse_pos[1] - self.pan_offset_y) / self.zoom_scale
@@ -355,36 +449,9 @@ class SimulationApp:
         pygame.draw.rect(self.screen, (41, 128, 185), (px + 60, py + 80, 100, 30), border_radius=4)
         self.screen.blit(self.font_bold.render("CONFIRM", True, (255, 255, 255)), (px + 82, py + 86))
 
-    def process_sim_button_clicks(self, mouse_pos):
-        for btn in self.ui_mgr.sim_buttons:
-            if btn.is_clicked(mouse_pos):
-                if btn.mode_id in [config.MODE_ASTAR_Q, config.MODE_LRTASTAR_Q]:
-                    self.current_mode = btn.mode_id
-                    self.ui_mgr.update_button_states(self.current_mode, self.brush_mode)
-                    self.logger.add_log(
-                        f"[SYSTEM] Switched execution to: {'A* + Q' if self.current_mode == config.MODE_ASTAR_Q else 'LRTA* + Q'}")
-                elif "Hour" in btn.text:
-                    self.current_hour = 17 if self.current_hour == 12 else 12
-                    btn.text = "Standard Hour (12h)" if self.current_hour == 17 else "Rush Hour (17h)"
-                    btn.is_active = (self.current_hour == 17)
-                    self.env.set_traffic_jam(self.current_hour)
-                    self.logger.add_log(f"[TRAFFIC] Timetable altered to {self.current_hour}h00.")
-                elif "Clear Map" in btn.text:
-                    self.active_agents.clear();
-                    self.env.accidents_pool.clear();
-                    config.HOSPITAL_CONFIG.clear()
-                    self.dispatcher.reset_resources();
-                    self.env.grid = [[config.STATE_EMPTY for _ in range(config.GRID_SIZE)] for _ in
-                                     range(config.GRID_SIZE)]
-                    self.app_state = 'MENU';
-                    self.ui_mgr.reposition_buttons();
-                    self.monitor.set_welcome()
-                    self.fleet_scroll_x = 0
-
     def update_visualizer(self, dt):
         is_visualizing = False
 
-        # 1. TỔNG ĐÀI ĐANG ĐẤU THẦU
         if hasattr(self, 'dispatch_generator') and self.dispatch_generator:
             is_visualizing = True
             if not hasattr(self, 'vis_timer'): self.vis_timer = 0
@@ -405,7 +472,10 @@ class SimulationApp:
                             agent = AStarQAgent(config.HOSPITAL_CONFIG[best_hospital]["pos"], best_path[
                                 -1]) if self.current_mode == config.MODE_ASTAR_Q else LRTALearningAgent(
                                 config.HOSPITAL_CONFIG[best_hospital]["pos"], best_path[-1])
-                            agent.search_generator = agent.search_path_generator(self.env)
+                            if self.visualize_search:
+                                agent.search_generator = agent.search_path_generator(self.env)
+                            else:
+                                agent.calculated_path = best_path
                             self.active_agents.append(agent)
                             self.dispatcher.current_cars[best_hospital] -= 1
                             self.logger.add_log(f"-> [DISPATCH] Đã chốt xe tối ưu nhất từ trạm {best_hospital}.")
@@ -416,7 +486,6 @@ class SimulationApp:
                 self.vis_timer = 0
             return True
 
-            # 2. MÔ PHỎNG AI TÌM ĐƯỜNG
         for agent in self.active_agents:
             if hasattr(agent, 'search_generator') and agent.search_generator:
                 is_visualizing = True
@@ -492,7 +561,6 @@ class SimulationApp:
 
         overlay = pygame.Surface((base_w, base_h), pygame.SRCALPHA)
 
-        # Lớp sóng A* (Xanh lá)
         for agent in self.active_agents:
             if hasattr(agent, 'vis_visited') and agent.vis_visited:
                 for r, c in agent.vis_visited:
@@ -507,7 +575,6 @@ class SimulationApp:
                     pygame.draw.rect(overlay, (52, 152, 219, 150),
                                      (c * config.CELL_SIZE, r * config.CELL_SIZE, config.CELL_SIZE, config.CELL_SIZE))
 
-        # Lớp sóng Tổng đài (Vàng/Cam)
         if hasattr(self, 'dispatch_vis_data') and self.dispatch_vis_data:
             open_set, visited, current_path, h_name = self.dispatch_vis_data
             for r, c in visited:
@@ -612,31 +679,3 @@ class SimulationApp:
         status_str = f"Timetable: {self.current_hour}h00  |  Solver Engine: {'A* + Q-Learning' if self.current_mode == config.MODE_ASTAR_Q else 'LRTA* + Q-Learning'}  |  Scale: {int(self.zoom_scale * 100)}%"
         self.screen.blit(self.font.render(status_str, True, config.COLOR_TEXT), (15, self.window_height - 25))
         if self.show_popup: self.draw_popup()
-
-    def run(self):
-        self.sim_timer = 0
-        self.vis_timer = 0
-        dt = 0
-
-        while self.handle_events():
-            if self.app_state == 'MENU':
-                self.screen.fill((44, 62, 80))
-                self.screen.blit(self.font_large.render("MULTI-AGENT EMERGENCY DISPATCH SYSTEM", True, (241, 196, 15)),
-                                 (self.window_width // 2 - 250, self.window_height // 2 - 80))
-                for btn in self.ui_mgr.menu_buttons: btn.draw(self.screen, self.font)
-
-            elif self.app_state == 'SIMULATION':
-                is_visualizing = self.update_visualizer(dt)
-
-                self.sim_timer += dt
-                if self.sim_timer >= 200:
-                    if not is_visualizing:
-                        self.update_simulation()
-                    self.sim_timer = 0
-
-                self.draw_simulation()
-
-            pygame.display.flip()
-            dt = self.clock.tick(30)
-
-        pygame.quit()

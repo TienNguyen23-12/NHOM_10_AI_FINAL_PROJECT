@@ -1,4 +1,3 @@
-# agents/astar_q_agent.py
 import heapq
 import config
 from agents.base_agent import BaseAgent
@@ -14,7 +13,6 @@ class AStarQAgent(BaseAgent):
         self.path_index = 0
         self.is_returning = False
 
-        # Biến quản lý trạng thái X-Quang để không bị đứng UI
         self.search_generator = None
         self.vis_open_set = set()
         self.vis_visited = set()
@@ -24,7 +22,6 @@ class AStarQAgent(BaseAgent):
         return abs(pos[0] - self.goal_pos[0]) + abs(pos[1] - self.goal_pos[1])
 
     def search_path_with_q(self, grid_map):
-        """Tính toán ngay lập tức (Chế độ tắt Visualizer)"""
         start, goal = self.start_pos, self.goal_pos
         open_set = []
         heapq.heappush(open_set, (0 + self.heuristic(start), 0, start, [start]))
@@ -49,7 +46,6 @@ class AStarQAgent(BaseAgent):
         return [start]
 
     def search_path_generator(self, grid_map):
-        """Hàm Generator: Trả về trạng thái từng bước để không đóng băng hệ thống"""
         start, goal = self.start_pos, self.goal_pos
         open_set = []
         heapq.heappush(open_set, (0 + self.heuristic(start), 0, start, [start]))
@@ -81,7 +77,7 @@ class AStarQAgent(BaseAgent):
                     open_set_tracker.add(neighbor)
 
             steps += 1
-            if steps % 4 == 0:  # Nhả đạn mỗi 4 ô để render
+            if steps % 4 == 0:
                 yield open_set_tracker, visited, path, False
 
         yield open_set_tracker, visited, [start], True
@@ -93,7 +89,7 @@ class AStarQAgent(BaseAgent):
             next_step = self.calculated_path[self.path_index + 1]
 
             if not grid_map.is_valid_move(next_step):
-                app_instance.logger.add_log("[RE-PLAN] Dự đoán tắc nghẽn. Đang tính lại...")
+                app_instance.logger.add_log("[RE-PLAN] Đường đi dự kiến bị chặn! Đang tính lại...")
                 self.start_pos = self.current_pos
                 if app_instance.visualize_search:
                     self.search_generator = self.search_path_generator(grid_map)

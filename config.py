@@ -1,37 +1,55 @@
 # config.py
 
-# Cấu hình kích thước lưới ô vuông đô thị
+# --- 1. CẤU HÌNH BẢN ĐỒ (GRID CONFIG) ---
 GRID_SIZE = 20
 CELL_SIZE = 25
+# Giới hạn kích thước để đảm bảo hiệu năng
+MIN_GRID = 10
+MAX_GRID = 100
 
-# Kích thước cửa sổ khởi tạo ban đầu
-WIDTH = GRID_SIZE * CELL_SIZE + 300
-HEIGHT = GRID_SIZE * CELL_SIZE + 120
-
-# Định nghĩa các trạng thái ô trên bản đồ
+# --- 2. TRẠNG THÁI Ô (GRID STATES) ---
 STATE_EMPTY = 0
 STATE_WALL = 1
 STATE_TRAFFIC = 2
 STATE_ACCIDENT = 3
 STATE_HOSPITAL = 4
 
-# Định nghĩa các chế độ chạy hệ thống
-MODE_NONE = 0
+# --- 3. BẢNG MÀU ĐỒ HỌA (THEME CONFIG) ---
+THEME = {
+    "EMPTY": (255, 255, 255),
+    "WALL": (44, 62, 80),
+    "TRAFFIC": (230, 126, 34),
+    "ACCIDENT": (231, 76, 60),
+    "HOSPITAL": (155, 89, 182),
+    "TEXT": (52, 73, 94)
+}
+
+# Ánh xạ màu cho GridMap sử dụng
+COLOR_EMPTY = THEME["EMPTY"]
+COLOR_WALL = THEME["WALL"]
+COLOR_TRAFFIC = THEME["TRAFFIC"]
+COLOR_ACCIDENT = THEME["ACCIDENT"]
+COLOR_HOSPITAL = THEME["HOSPITAL"]
+COLOR_TEXT = THEME["TEXT"]
+
+# --- 4. CẤU HÌNH AI & THUẬT TOÁN (AI HYPERPARAMETERS) ---
 MODE_ASTAR_Q = 1
 MODE_LRTASTAR_Q = 2
 
-# Hệ thống bảng màu đồ họa RGB
-COLOR_EMPTY = (255, 255, 255)      # Trắng - Đường đi tự do
-COLOR_WALL = (44, 62, 80)          # Xanh đen - Khối nhà / Rào chắn cố định
-COLOR_TRAFFIC = (230, 126, 34)     # Cam - Vùng kẹt xe theo giờ cao điểm
-COLOR_ACCIDENT = (231, 76, 60)     # Đỏ - Vị trí điểm xảy ra tai nạn đột xuất
-COLOR_HOSPITAL = (155, 89, 182)    # Tím - Vị trí Trạm bệnh viện cứu hộ
-COLOR_TEXT = (52, 73, 94)
+# Hệ số Q-Learning (Ảnh hưởng đến độ "nhớ" của xe)
+GAMMA = 0.9  # Tầm nhìn xa của AI (Discount Factor)
+LEARNING_RATE = 0.5 # Tốc độ cập nhật kinh nghiệm mới (Nếu thầy cô hỏi, bảo em để 0.5 để cân bằng giữa cũ và mới)
 
-# Hệ thống điểm thưởng / phạt của bộ não học máy Q-Learning
-REWARD_STEP = -1       # Phạt di chuyển thông thường để thúc đẩy đi nhanh
-REWARD_TRAFFIC = -10   # Phạt nặng khi lọt vào vùng kẹt xe
-REWARD_ACCIDENT = -25  # Phạt cực nặng nếu đâm trúng điểm tai nạn khác
+# Chi phí di chuyển (Cost) - Dùng trong hàm tính toán tổng chi phí của A* và LRTA*
+COST_EMPTY = 1
+COST_TRAFFIC = 10    # Càng cao xe càng sợ đường kẹt
+COST_ACCIDENT = 50   # Phạt cực nặng khi đâm vào vùng nguy hiểm
 
-# Cấu hình tài nguyên kho xe (Sẽ được nạp động khi chạy hệ thống)
+# --- 5. ĐỊNH NGHĨA PHẦN THƯỞNG (Q-LEARNING REWARDS) ---
+REWARD_STEP = -1       # Chi phí mỗi bước di chuyển
+REWARD_TRAFFIC = -20   # Phạt kẹt xe (Cần thấp hơn COST_TRAFFIC để AI học nhanh hơn)
+REWARD_GOAL = 100      # Phần thưởng khi về đích thành công
+
+# --- 6. CẤU HÌNH HỆ THỐNG ---
 HOSPITAL_CONFIG = {}
+DEFAULT_FLEET_SIZE = 3 # Số xe mặc định khi tạo trạm mới
