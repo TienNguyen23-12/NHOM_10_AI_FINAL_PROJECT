@@ -45,6 +45,10 @@ class SimulationApp:
         self.dispatcher.reset_resources()
 
         self.active_agents = []
+
+        # --- ĐÃ THÊM: Hàng chờ tai nạn ---
+        self.pending_accidents = []
+
         self.is_paused = False
         self.current_mode = config.MODE_ASTAR_Q
         self.current_hour = 12
@@ -85,8 +89,10 @@ class SimulationApp:
 
             elif self.app_state == 'SIMULATION':
                 if not self.is_paused:
-                    is_visualizing = self.update_visualizer(dt)
+                    # --- ĐÃ THÊM: Gọi Quản lý hàng chờ chạy ngầm ---
+                    self.manage_queue()
 
+                    is_visualizing = self.update_visualizer(dt)
                     self.sim_timer += dt
                     if self.sim_timer >= 200:
                         if not is_visualizing:
@@ -99,6 +105,42 @@ class SimulationApp:
             dt = self.clock.tick(30)
 
         pygame.quit()
+
+    def manage_queue(self):
+        """Hàm tự động quét hàng chờ và điều phối xe khi có xe rảnh"""
+        # Nếu đang bận chạy Radar quét thầu thì khoan làm việc khác
+        if self.dispatch_generator is not None:
+            return
+
+        # Nếu không có ca tai nạn nào chờ thì nghỉ
+        if not self.pending_accidents:
+            return
+
+        # Kiểm tra xem có trạm nào còn xe rảnh không
+        total_cars = sum(self.dispatcher.current_cars.values())
+        if total_cars <= 0:
+            return
+
+            # Lấy ca tai nạn đầu tiên ra khỏi hàng chờ
+        acc_pos = self.pending_accidents[0]
+
+        if self.visualize_search:
+            self.logger.add_log(f"[DISPATCH] Đang quét thầu cho tai nạn tại {acc_pos}...")
+            self.dispatch_generator = self.dispatcher.evaluate_generator(acc_pos, self.env)
+        else:
+            h_name, path = self.dispatcher.evaluate_and_dispatch(acc_pos, self.env)
+            if h_name and path:
+                agent = AStarQAgent(config.HOSPITAL_CONFIG[h_name]["pos"],
+                                    acc_pos) if self.current_mode == config.MODE_ASTAR_Q else LRTALearningAgent(
+                    config.HOSPITAL_CONFIG[h_name]["pos"], acc_pos)
+                agent.calculated_path = path
+                self.active_agents.append(agent)
+                self.pending_accidents.pop(0)  # Xóa khỏi hàng chờ
+                self.logger.add_log(
+                    f"-> [DISPATCH] Đã chốt xe từ trạm {h_name}. Còn {len(self.pending_accidents)} ca chờ.")
+            else:
+                self.pending_accidents.pop(0)
+                self.logger.add_log(f"[DISPATCH] TỪ CHỐI: Lỗi chặn đường đến {acc_pos}! Đã hủy ca.")
 
     def handle_events(self):
         for event in pygame.event.get():
@@ -230,32 +272,33 @@ class SimulationApp:
                     if self.monitor.display_mode == "Q_TABLE":
                         self.monitor.load_q_table(self.global_q_brain.q_table)
                 elif "Visualizer" in btn.text:
-                    # --- ĐÃ FIX: Logic chuyển đổi ON/OFF Visualizer thông minh ---
                     self.visualize_search = not self.visualize_search
                     btn.text = "Visualizer: ON" if self.visualize_search else "Visualizer: OFF"
                     btn.is_active = self.visualize_search
 
                     if not self.visualize_search:
-                        # Nếu người dùng tắt Visualizer đi khi Tổng đài đang quét thầu -> Ép vòng lặp chạy hết lập tức
                         if self.dispatch_generator:
                             try:
                                 while True:
                                     open_set, visited, current_path, h_name, is_done = next(self.dispatch_generator)
-                                    if is_done and h_name and current_path:
-                                        agent = AStarQAgent(config.HOSPITAL_CONFIG[h_name]["pos"], current_path[
-                                            -1]) if self.current_mode == config.MODE_ASTAR_Q else LRTALearningAgent(
-                                            config.HOSPITAL_CONFIG[h_name]["pos"], current_path[-1])
-                                        agent.calculated_path = current_path
-                                        self.active_agents.append(agent)
-                                        self.dispatcher.current_cars[h_name] -= 1
-                                        self.logger.add_log(f"-> [DISPATCH] Xả đệm: Đã chốt xe từ trạm {h_name}.")
+                                    if is_done:
+                                        if h_name and current_path:
+                                            agent = AStarQAgent(config.HOSPITAL_CONFIG[h_name]["pos"], current_path[
+                                                -1]) if self.current_mode == config.MODE_ASTAR_Q else LRTALearningAgent(
+                                                config.HOSPITAL_CONFIG[h_name]["pos"], current_path[-1])
+                                            agent.calculated_path = current_path
+                                            self.active_agents.append(agent)
+                                            self.dispatcher.current_cars[h_name] -= 1
+                                            if self.pending_accidents: self.pending_accidents.pop(0)
+                                            self.logger.add_log(f"-> [DISPATCH] Xả đệm: Đã chốt xe từ trạm {h_name}.")
+                                        else:
+                                            if self.pending_accidents: self.pending_accidents.pop(0)
                                         break
                             except StopIteration:
                                 pass
                             self.dispatch_generator = None
                             self.dispatch_vis_data = None
 
-                        # Ép các Agent đang chạy dở bước tìm kiếm A* hoàn thành ngay lộ trình
                         for agent in self.active_agents:
                             if hasattr(agent, 'search_generator') and agent.search_generator:
                                 try:
@@ -303,6 +346,7 @@ class SimulationApp:
 
             self.active_agents.clear()
             self.env.accidents_pool.clear()
+            self.pending_accidents.clear()
 
             config.GRID_SIZE = data["grid_size"]
             self.env.grid = data["grid"]
@@ -315,6 +359,7 @@ class SimulationApp:
                 for c in range(config.GRID_SIZE):
                     if self.env.grid[r][c] == config.STATE_ACCIDENT:
                         self.env.accidents_pool.append((r, c))
+                        self.pending_accidents.append((r, c))
 
             self.dispatcher.hospitals = config.HOSPITAL_CONFIG
             self.dispatcher.reset_resources()
@@ -336,9 +381,10 @@ class SimulationApp:
                 new_grid[r][c] = self.env.grid[r][c]
 
         self.env.accidents_pool = [(r, c) for (r, c) in self.env.accidents_pool if r < new_size and c < new_size]
+        self.pending_accidents = [(r, c) for (r, c) in self.pending_accidents if r < new_size and c < new_size]
+
         hospitals_to_remove = [h_name for h_name, h_info in config.HOSPITAL_CONFIG.items() if
                                h_info["pos"][0] >= new_size or h_info["pos"][1] >= new_size]
-
         for h in hospitals_to_remove:
             config.HOSPITAL_CONFIG.pop(h)
             if h in self.dispatcher.current_cars:
@@ -362,21 +408,21 @@ class SimulationApp:
                     btn.is_active = (self.current_hour == 17)
                     self.env.set_traffic_jam(self.current_hour)
                     self.logger.add_log(f"[TRAFFIC] Timetable altered to {self.current_hour}h00.")
-                # --- ĐÃ FIX: Logic khóa từ khóa động tránh lỗi đóng băng nút Stop/Resume ---
                 elif "Stop" in btn.text or "Resume" in btn.text or "STOPPED" in btn.text:
                     self.is_paused = not self.is_paused
                     btn.text = "STOPPED" if self.is_paused else "Stop/Resume"
                     btn.is_active = self.is_paused
                     self.logger.add_log(f"[SYSTEM] Simulation {'PAUSED' if self.is_paused else 'RESUMED'}.")
                 elif "Clear Map" in btn.text:
-                    self.active_agents.clear();
-                    self.env.accidents_pool.clear();
+                    self.active_agents.clear()
+                    self.env.accidents_pool.clear()
+                    self.pending_accidents.clear()
                     config.HOSPITAL_CONFIG.clear()
-                    self.dispatcher.reset_resources();
+                    self.dispatcher.reset_resources()
                     self.env.grid = [[config.STATE_EMPTY for _ in range(config.GRID_SIZE)] for _ in
                                      range(config.GRID_SIZE)]
-                    self.app_state = 'MENU';
-                    self.ui_mgr.reposition_buttons();
+                    self.app_state = 'MENU'
+                    self.ui_mgr.reposition_buttons()
                     self.monitor.set_welcome()
                     self.fleet_scroll_x = 0
 
@@ -393,6 +439,7 @@ class SimulationApp:
                     if key: config.HOSPITAL_CONFIG.pop(key); self.dispatcher.current_cars.pop(key)
                 elif curr == config.STATE_ACCIDENT and (row, col) in self.env.accidents_pool:
                     self.env.accidents_pool.remove((row, col))
+                    if (row, col) in self.pending_accidents: self.pending_accidents.remove((row, col))
                 self.env.grid[row][col] = config.STATE_EMPTY
             elif self.brush_mode == 'HOSPITAL' and self.env.grid[row][col] in [config.STATE_EMPTY, config.STATE_WALL]:
                 self.show_popup, self.popup_target_pos, self.popup_car_count = True, (row, col), 3
@@ -404,20 +451,11 @@ class SimulationApp:
                 acc_pos = (row, col)
                 self.env.grid[row][col] = config.STATE_ACCIDENT
                 self.env.accidents_pool.append(acc_pos)
-                self.logger.add_log(f"[ALERT] New incident at area ({row}, {col})!")
 
-                if self.visualize_search:
-                    self.logger.add_log("[DISPATCH] Đang chạy AI quét điểm thầu các trạm...")
-                    self.dispatch_generator = self.dispatcher.evaluate_generator(acc_pos, self.env)
-                else:
-                    h_name, path = self.dispatcher.evaluate_and_dispatch(acc_pos, self.env)
-                    if h_name and path:
-                        agent = AStarQAgent(config.HOSPITAL_CONFIG[h_name]["pos"],
-                                            acc_pos) if self.current_mode == config.MODE_ASTAR_Q else LRTALearningAgent(
-                            config.HOSPITAL_CONFIG[h_name]["pos"], acc_pos)
-                        agent.calculated_path = path
-                        self.active_agents.append(agent)
-                        self.logger.add_log(f"-> [DISPATCH] Deployed from depot {h_name}.")
+                # --- ĐÃ FIX: Chỉ đưa vào hàng chờ, không gọi AI Dispatch ở đây nữa ---
+                self.pending_accidents.append(acc_pos)
+                self.logger.add_log(
+                    f"[ALERT] Tai nạn tại {acc_pos} đã được đưa vào HÀNG CHỜ ({len(self.pending_accidents)}).")
 
     def handle_popup_click(self, mouse_pos):
         px, py = self.window_width // 2 - 120, self.window_height // 2 - 60
@@ -478,8 +516,11 @@ class SimulationApp:
                                 agent.calculated_path = best_path
                             self.active_agents.append(agent)
                             self.dispatcher.current_cars[best_hospital] -= 1
-                            self.logger.add_log(f"-> [DISPATCH] Đã chốt xe tối ưu nhất từ trạm {best_hospital}.")
+                            if self.pending_accidents: self.pending_accidents.pop(0)
+                            self.logger.add_log(
+                                f"-> [DISPATCH] Đã chốt xe từ trạm {best_hospital}. Còn {len(self.pending_accidents)} ca chờ.")
                         else:
+                            if self.pending_accidents: self.pending_accidents.pop(0)
                             self.logger.add_log("[DISPATCH] TỪ CHỐI: Các trạm đã hết xe hoặc kẹt đường!")
                 except StopIteration:
                     self.dispatch_generator = None
@@ -676,6 +717,7 @@ class SimulationApp:
                 pygame.draw.rect(self.screen, (180, 185, 190), (bar_x, fleet_rect.bottom - 5, bar_width, 3),
                                  border_radius=2)
 
-        status_str = f"Timetable: {self.current_hour}h00  |  Solver Engine: {'A* + Q-Learning' if self.current_mode == config.MODE_ASTAR_Q else 'LRTA* + Q-Learning'}  |  Scale: {int(self.zoom_scale * 100)}%"
+        # --- ĐÃ THÊM: Hiển thị trạng thái HÀNG CHỜ góc trái dưới cùng màn hình ---
+        status_str = f"Timetable: {self.current_hour}h00  |  Solver Engine: {'A* + Q-Learning' if self.current_mode == config.MODE_ASTAR_Q else 'LRTA* + Q-Learning'}  |  Queue: {len(self.pending_accidents)} waiting"
         self.screen.blit(self.font.render(status_str, True, config.COLOR_TEXT), (15, self.window_height - 25))
         if self.show_popup: self.draw_popup()
