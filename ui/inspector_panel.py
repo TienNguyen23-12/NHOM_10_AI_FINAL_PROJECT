@@ -1,4 +1,3 @@
-# ui/inspector_panel.py
 import pygame
 
 
@@ -27,9 +26,7 @@ class InspectorPanel:
         self.inspect_data = ["Click any inspection button above", "to stream live AI internal metrics."]
 
     def load_q_table(self, q_table):
-        # ĐÃ FIX: Chỉ reset thanh cuộn khi đổi từ bảng khác sang Q_TABLE
         if self.display_mode != "Q_TABLE": self.scroll_y = 0
-
         self.display_mode = "Q_TABLE"
         self.inspect_data = ["--- LIVE BACKEND Q-TABLE METRICS ---"]
         if not q_table:
@@ -40,9 +37,7 @@ class InspectorPanel:
             self.inspect_data.append(f"Cell {state} -> Q:{rounded_v}")
 
     def load_h_table(self, active_agents):
-        # ĐÃ FIX: Tương tự cho H-Table
         if self.display_mode != "H_TABLE": self.scroll_y = 0
-
         self.display_mode = "H_TABLE"
         self.inspect_data = ["--- LIVE LRTA* HEURISTIC FIELDS ---"]
         lrta_cars = [a for a in active_agents if hasattr(a, 'h_table')]
@@ -55,9 +50,7 @@ class InspectorPanel:
                 self.inspect_data.append(f"  Node {state} -> H: {round(h_val, 1)}")
 
     def load_paths(self, active_agents):
-        # ĐÃ FIX: Tương tự cho bảng Routes
         if self.display_mode != "PATHS": self.scroll_y = 0
-
         self.display_mode = "PATHS"
         self.inspect_data = ["--- ACTIVE MISSION PATH ROUTING ---"]
         if not active_agents:
@@ -73,7 +66,6 @@ class InspectorPanel:
         pygame.draw.rect(screen, (248, 249, 250), (self.x, self.y, self.width, self.height), border_radius=6)
         pygame.draw.rect(screen, (220, 224, 230), (self.x, self.y, self.width, self.height), 1, border_radius=6)
 
-        # ĐÃ FIX: Tính toán Max Scroll sớm để ép thanh cuộn không bị trôi tuột khi danh sách thay đổi kích thước
         total_content_height = len(self.inspect_data) * 20 + 24
         self.max_scroll = max(0, total_content_height - self.height)
         if self.scroll_y < -self.max_scroll: self.scroll_y = -self.max_scroll

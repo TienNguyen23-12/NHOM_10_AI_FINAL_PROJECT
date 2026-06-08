@@ -1,4 +1,3 @@
-# ui/logger_panel.py
 import pygame
 
 
@@ -8,27 +7,48 @@ class LoggerPanel:
         self.y = y
         self.width = width
         self.height = height
-        self.ui_logs = ["[SYSTEM] Ready to initialize application simulation."]
+        self.logs = []
+        self.max_logs = 20  # Lưu tối đa 20 dòng để nhẹ máy
 
-    def add_log(self, text):
-        self.ui_logs.append(text)
-        if len(self.ui_logs) > 5:  # Giới hạn 5 dòng gọn gàng
-            self.ui_logs.pop(0)
+    def add_log(self, message):
+        self.logs.append(message)
+        if len(self.logs) > self.max_logs:
+            self.logs.pop(0)
 
     def draw(self, screen, font):
-        pygame.draw.rect(screen, (25, 25, 25), (self.x, self.y, self.width, self.height), border_radius=5)
-        pygame.draw.rect(screen, (80, 80, 80), (self.x, self.y, self.width, self.height), 1, border_radius=5)
+        # 1. Vẽ background bo góc xịn sò (Màu Than chì đậm)
+        pygame.draw.rect(screen, (34, 47, 62), (self.x, self.y, self.width, self.height), border_radius=6)
+        # 2. Vẽ viền xám nhạt
+        pygame.draw.rect(screen, (87, 101, 116), (self.x, self.y, self.width, self.height), 2, border_radius=6)
 
-        for idx, log_text in enumerate(self.ui_logs):
-            color = (220, 220, 220)
-            if "returned" in log_text or "allocation" in log_text or "recovered" in log_text.lower():
-                color = (46, 204, 113)
-            elif "ALERT" in log_text:
-                color = (231, 76, 60)
-            elif "DISPATCH" in log_text:
-                color = (241, 196, 15)
+        # 3. CẮT VIỀN (Clipping): Đảm bảo chữ không bao giờ bị tràn ra ngoài khung
+        old_clip = screen.get_clip()
+        screen.set_clip(pygame.Rect(self.x, self.y, self.width, self.height))
 
-                # ĐÃ FIX: Bước nhảy dòng là 18px (vượt qua font size 14px) để chữ không bao giờ đè nhau
-            y_offset = self.y + 8 + (idx * 18)
-            log_surf = font.render(log_text, True, color)
-            screen.blit(log_surf, (self.x + 12, y_offset))
+        # 4. Vẽ text từ dưới lên trên
+        padding_x = 10
+        padding_y = 10
+        line_spacing = 18
+
+        current_y = self.y + self.height - padding_y - line_spacing
+
+        for log in reversed(self.logs):
+            if current_y < self.y: break  # Nếu vượt quá mép trên thì ngưng vẽ
+
+            # Tô màu text tự động dựa vào keyword
+            color = (200, 214, 229)  # Xám trắng mặc định
+            if "[ALERT]" in log:
+                color = (255, 107, 107)  # Đỏ
+            elif "[SYSTEM]" in log:
+                color = (29, 209, 161)  # Xanh mint
+            elif "[DISPATCH]" in log:
+                color = (254, 202, 87)  # Vàng cam
+            elif "[STATION]" in log:
+                color = (72, 219, 251)  # Xanh dương nhạt
+
+            text_surf = font.render(log, True, color)
+            screen.blit(text_surf, (self.x + padding_x, current_y))
+            current_y -= line_spacing
+
+        # Trả lại quyền vẽ toàn màn hình
+        screen.set_clip(old_clip)

@@ -1,4 +1,3 @@
-# agents/lrtastar_q_agent.py
 import config
 from agents.base_agent import BaseAgent
 
@@ -10,7 +9,6 @@ class LRTALearningAgent(BaseAgent):
         self.original_hospital_pos = start_pos
         self.is_returning = False
 
-        # Biến nạp dữ liệu vẽ Radar
         self.vis_open_set = set()
         self.vis_visited = set()
         self.vis_path = []
@@ -62,7 +60,6 @@ class LRTALearningAgent(BaseAgent):
                     min_f = f_value;
                     best_next = neighbor
 
-        # Nạp dữ liệu Radar vào biến, Engine sẽ tự lấy để vẽ mà không cần delay
         if hasattr(app_instance, 'visualize_search') and app_instance.visualize_search:
             self.vis_open_set = radar_scanned_cells
             self.vis_visited = {current}
