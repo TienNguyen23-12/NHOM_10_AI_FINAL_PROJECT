@@ -556,18 +556,32 @@ class SimulationApp:
         for agent in self.active_agents:
             if not agent.is_finished:
                 old_pos = agent.current_pos
+
+                # Xe di chuyển 1 bước
                 if isinstance(agent, LRTALearningAgent):
                     agent.update_route_realtime_with_return(self.env, self)
                 else:
                     agent.update_astar_return_logic(self.env, self)
 
+                # Nếu xe có sự thay đổi vị trí -> Cập nhật Q-Table
                 if agent.current_pos != old_pos:
                     dr = agent.current_pos[0] - old_pos[0]
                     dc = agent.current_pos[1] - old_pos[1]
+
                     if (dr, dc) in self.global_q_brain.actions:
                         action_idx = self.global_q_brain.actions.index((dr, dc))
+
+                        # MẶC ĐỊNH: Phạt chi phí di chuyển (Trừ điểm xăng/kẹt xe)
                         reward = -self.env.get_cost(agent.current_pos)
+
+                        # PHÁT LƯƠNG: Nếu bước đi này chạm đích -> Thưởng nóng +100!
+                        if agent.current_pos == agent.goal_pos:
+                            reward = config.REWARD_GOAL
+
+                        # Cập nhật bộ não
                         self.global_q_brain.update_q_value(old_pos, action_idx, reward, agent.current_pos)
+
+                        # Render lên màn hình
                         if self.monitor.display_mode == "Q_TABLE":
                             self.monitor.load_q_table(self.global_q_brain.q_table)
 
