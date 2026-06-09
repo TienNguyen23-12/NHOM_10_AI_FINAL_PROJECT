@@ -1,4 +1,3 @@
-# ui/simulation_app.py
 import pygame
 import config
 import json
@@ -45,8 +44,6 @@ class SimulationApp:
         self.dispatcher.reset_resources()
 
         self.active_agents = []
-
-        # --- ĐÃ THÊM: Hàng chờ tai nạn ---
         self.pending_accidents = []
 
         self.is_paused = False
@@ -89,7 +86,6 @@ class SimulationApp:
 
             elif self.app_state == 'SIMULATION':
                 if not self.is_paused:
-                    # --- ĐÃ THÊM: Gọi Quản lý hàng chờ chạy ngầm ---
                     self.manage_queue()
 
                     is_visualizing = self.update_visualizer(dt)
@@ -107,21 +103,16 @@ class SimulationApp:
         pygame.quit()
 
     def manage_queue(self):
-        """Hàm tự động quét hàng chờ và điều phối xe khi có xe rảnh"""
-        # Nếu đang bận chạy Radar quét thầu thì khoan làm việc khác
         if self.dispatch_generator is not None:
             return
 
-        # Nếu không có ca tai nạn nào chờ thì nghỉ
         if not self.pending_accidents:
             return
 
-        # Kiểm tra xem có trạm nào còn xe rảnh không
         total_cars = sum(self.dispatcher.current_cars.values())
         if total_cars <= 0:
             return
 
-            # Lấy ca tai nạn đầu tiên ra khỏi hàng chờ
         acc_pos = self.pending_accidents[0]
 
         if self.visualize_search:
@@ -135,7 +126,7 @@ class SimulationApp:
                     config.HOSPITAL_CONFIG[h_name]["pos"], acc_pos)
                 agent.calculated_path = path
                 self.active_agents.append(agent)
-                self.pending_accidents.pop(0)  # Xóa khỏi hàng chờ
+                self.pending_accidents.pop(0)
                 self.logger.add_log(
                     f"-> [DISPATCH] Đã chốt xe từ trạm {h_name}. Còn {len(self.pending_accidents)} ca chờ.")
             else:
@@ -451,8 +442,6 @@ class SimulationApp:
                 acc_pos = (row, col)
                 self.env.grid[row][col] = config.STATE_ACCIDENT
                 self.env.accidents_pool.append(acc_pos)
-
-                # --- ĐÃ FIX: Chỉ đưa vào hàng chờ, không gọi AI Dispatch ở đây nữa ---
                 self.pending_accidents.append(acc_pos)
                 self.logger.add_log(
                     f"[ALERT] Tai nạn tại {acc_pos} đã được đưa vào HÀNG CHỜ ({len(self.pending_accidents)}).")
@@ -510,10 +499,12 @@ class SimulationApp:
                             agent = AStarQAgent(config.HOSPITAL_CONFIG[best_hospital]["pos"], best_path[
                                 -1]) if self.current_mode == config.MODE_ASTAR_Q else LRTALearningAgent(
                                 config.HOSPITAL_CONFIG[best_hospital]["pos"], best_path[-1])
-                            if self.visualize_search:
+
+                            if self.visualize_search and self.current_mode == config.MODE_ASTAR_Q:
                                 agent.search_generator = agent.search_path_generator(self.env)
                             else:
                                 agent.calculated_path = best_path
+
                             self.active_agents.append(agent)
                             self.dispatcher.current_cars[best_hospital] -= 1
                             if self.pending_accidents: self.pending_accidents.pop(0)
@@ -557,33 +548,24 @@ class SimulationApp:
             if not agent.is_finished:
                 old_pos = agent.current_pos
 
-                # Xe di chuyển 1 bước
                 if isinstance(agent, LRTALearningAgent):
                     agent.update_route_realtime_with_return(self.env, self)
                 else:
                     agent.update_astar_return_logic(self.env, self)
 
-                # Nếu xe có sự thay đổi vị trí -> Cập nhật Q-Table
                 if agent.current_pos != old_pos:
-                    dr = agent.current_pos[0] - old_pos[0]
-                    dc = agent.current_pos[1] - old_pos[1]
+                    if isinstance(agent, AStarQAgent):
+                        dr = agent.current_pos[0] - old_pos[0]
+                        dc = agent.current_pos[1] - old_pos[1]
+                        if (dr, dc) in self.global_q_brain.actions:
+                            action_idx = self.global_q_brain.actions.index((dr, dc))
+                            reward = -self.env.get_cost(agent.current_pos)
+                            if agent.current_pos == agent.goal_pos:
+                                reward = config.REWARD_GOAL
+                            self.global_q_brain.update_q_value(old_pos, action_idx, reward, agent.current_pos)
 
-                    if (dr, dc) in self.global_q_brain.actions:
-                        action_idx = self.global_q_brain.actions.index((dr, dc))
-
-                        # MẶC ĐỊNH: Phạt chi phí di chuyển (Trừ điểm xăng/kẹt xe)
-                        reward = -self.env.get_cost(agent.current_pos)
-
-                        # PHÁT LƯƠNG: Nếu bước đi này chạm đích -> Thưởng nóng +100!
-                        if agent.current_pos == agent.goal_pos:
-                            reward = config.REWARD_GOAL
-
-                        # Cập nhật bộ não
-                        self.global_q_brain.update_q_value(old_pos, action_idx, reward, agent.current_pos)
-
-                        # Render lên màn hình
-                        if self.monitor.display_mode == "Q_TABLE":
-                            self.monitor.load_q_table(self.global_q_brain.q_table)
+                    if self.monitor.display_mode == "Q_TABLE":
+                        self.monitor.load_q_table(self.global_q_brain.q_table)
 
     def draw_simulation(self):
         self.screen.fill((240, 244, 248))
@@ -731,7 +713,6 @@ class SimulationApp:
                 pygame.draw.rect(self.screen, (180, 185, 190), (bar_x, fleet_rect.bottom - 5, bar_width, 3),
                                  border_radius=2)
 
-        # --- ĐÃ THÊM: Hiển thị trạng thái HÀNG CHỜ góc trái dưới cùng màn hình ---
         status_str = f"Timetable: {self.current_hour}h00  |  Solver Engine: {'A* + Q-Learning' if self.current_mode == config.MODE_ASTAR_Q else 'LRTA* + Q-Learning'}  |  Queue: {len(self.pending_accidents)} waiting"
         self.screen.blit(self.font.render(status_str, True, config.COLOR_TEXT), (15, self.window_height - 25))
         if self.show_popup: self.draw_popup()

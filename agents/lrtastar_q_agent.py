@@ -33,9 +33,9 @@ class LRTALearningAgent(BaseAgent):
 
         elif self.current_pos == self.original_hospital_pos and self.is_returning:
             self.is_finished = True
-            self.path.clear();
+            self.path.clear()
             self.vis_open_set.clear()
-            self.vis_visited.clear();
+            self.vis_visited.clear()
             self.vis_path.clear()
 
             found_hospital = next((name for name, info in app_instance.dispatcher.hospitals.items() if
@@ -49,16 +49,25 @@ class LRTALearningAgent(BaseAgent):
         best_next = None
         min_f = float('inf')
         radar_scanned_cells = set()
+        best_action_idx = -1
 
-        for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+        for action_idx, (dr, dc) in enumerate(app_instance.global_q_brain.actions):
             neighbor = (current[0] + dr, current[1] + dc)
+
             if grid_map.is_valid_move(neighbor):
                 radar_scanned_cells.add(neighbor)
-                cost = 1 if neighbor == self.goal_pos else grid_map.get_cost(neighbor)
-                f_value = cost + self.get_h(neighbor)
+
+                base_cost = 1 if neighbor == self.goal_pos else grid_map.get_cost(neighbor)
+
+                q_vals = app_instance.global_q_brain.q_table.get(current, [0, 0, 0, 0])
+                q_pen = -q_vals[action_idx] if q_vals[action_idx] < 0 else 0
+
+                f_value = base_cost + q_pen + self.get_h(neighbor)
+
                 if f_value < min_f:
-                    min_f = f_value;
+                    min_f = f_value
                     best_next = neighbor
+                    best_action_idx = action_idx
 
         if hasattr(app_instance, 'visualize_search') and app_instance.visualize_search:
             self.vis_open_set = radar_scanned_cells
@@ -70,5 +79,12 @@ class LRTALearningAgent(BaseAgent):
             self.vis_path.clear()
 
         if best_next:
+            old_pos = self.current_pos
             self.h_table[current] = max(self.get_h(current), min_f)
             self.move_to(best_next)
+
+            reward = -grid_map.get_cost(self.current_pos)
+            if self.current_pos == self.goal_pos:
+                reward = config.REWARD_GOAL
+
+            app_instance.global_q_brain.update_q_value(old_pos, best_action_idx, reward, self.current_pos)
