@@ -1,6 +1,20 @@
 # main.py
-from ui.simulation_app import SimulationApp
+import sys
+from PyQt6.QtWidgets import QApplication
+from PyQt6.QtGui     import QFont
+from ui.app_window   import AppWindow
+from ui              import theme
+
 
 if __name__ == "__main__":
-    # Khởi chạy ứng dụng Dashboard từ module đồ họa độc lập
-    SimulationApp().run()
+    app = QApplication(sys.argv)
+
+    # Áp dụng global QSS theme + Fusion palette
+    theme.apply(app)
+
+    # Font mặc định toàn app
+    app.setFont(QFont("Segoe UI", 9))
+
+    window = AppWindow()
+    window.show()
+    sys.exit(app.exec())
