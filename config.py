@@ -33,8 +33,14 @@ COLOR_HOSPITAL = THEME["HOSPITAL"]
 COLOR_TEXT = THEME["TEXT"]
 
 # --- 4. CẤU HÌNH AI & THUẬT TOÁN (AI HYPERPARAMETERS) ---
-MODE_ASTAR_Q = 1
-MODE_LRTASTAR_Q = 2
+# Chế độ thuật toán
+MODE_ASTAR = 1           # A* Thuần (Không não)
+MODE_LRTASTAR = 2        # LRTA* Thuần (Không não)
+MODE_ASTAR_Q = 3         # A* + Q-Learning
+MODE_LRTASTAR_Q = 4      # LRTA* + Q-Learning
+
+# Hệ số đồng bộ đơn vị Q-Table vào hàm Heuristic (Từ 0.1 đến 1.0)
+Q_WEIGHT = 0.2
 
 # Hệ số Q-Learning (Ảnh hưởng đến độ "nhớ" của xe)
 GAMMA = 0.9  # Tầm nhìn xa của AI (Discount Factor)

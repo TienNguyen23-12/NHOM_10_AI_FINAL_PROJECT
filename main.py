@@ -5,8 +5,7 @@ from PyQt6.QtGui     import QFont
 from ui.app_window   import AppWindow
 from ui              import theme
 
-
-if __name__ == "__main__":
+def main():
     app = QApplication(sys.argv)
 
     # Áp dụng global QSS theme + Fusion palette
@@ -18,3 +17,6 @@ if __name__ == "__main__":
     window = AppWindow()
     window.show()
     sys.exit(app.exec())
+
+if __name__ == "__main__":
+    main()

@@ -9,6 +9,13 @@ class QLearningModel:
         self.actions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
         self.gamma = gamma
 
+        # --- THÊM CÁC BIẾN CHO DYNAMIC GAMMA ---
+        self.gamma_init = 0.4  # Ban đầu nhìn ngắn
+        self.gamma_max = 0.95  # Sau này nhìn xa
+        self.growth_rate = 0.001  # Tốc độ trưởng thành
+        self.total_steps = 0  # Đếm tuổi đời AI
+        self.gamma = self.gamma_init
+
     def get_q_values(self, state):
         """Khởi tạo trạng thái s với Q(s,a) = 0 nếu chưa tồn tại"""
         if state not in self.q_table:
@@ -16,13 +23,20 @@ class QLearningModel:
         return self.q_table[state]
 
     def update_q_value(self, state, action_idx, reward, next_state):
-        # --- ĐÃ FIX: Gọi hàm này để đảm bảo 'state' (ô cũ) được khởi tạo mảng [0,0,0,0] ---
-        self.get_q_values(state)
+        # 1. AI già đi 1 tuổi, Gamma lớn lên 1 chút
+        self.total_steps += 1
+        self.gamma = min(self.gamma_max, self.gamma_init + (self.growth_rate * self.total_steps))
 
-        # Phương trình chuẩn: Q(s,a) = r + gamma * max(Q(s',a'))
-        max_next_q = max(self.get_q_values(next_state))
-        new_q = reward + self.gamma * max_next_q
-        self.q_table[state][action_idx] = new_q
+        if state not in self.q_table:
+            self.q_table[state] = [0, 0, 0, 0]
+        if next_state not in self.q_table:
+            self.q_table[next_state] = [0, 0, 0, 0]
+
+        # 2. Sử dụng Gamma hiện tại (đã tăng) để tính toán
+        best_next_q = max(self.q_table[next_state])
+
+        # Phương trình Bellman với Alpha = 1.0
+        self.q_table[state][action_idx] = reward + (self.gamma * best_next_q)
 
     def save_brain(self, filepath="q_brain_memory.json"):
         json_friendly_table = {str(k): v for k, v in self.q_table.items()}

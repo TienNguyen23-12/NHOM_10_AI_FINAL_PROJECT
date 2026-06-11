@@ -193,18 +193,31 @@ class ControlsPanel(QWidget):
 
         v.addWidget(_col_header("AI CONTROLS", "fa5s.brain"))
 
-        # Dòng 1: Algorithm mode (exclusive pair)
+        # Dòng 1 + 2: Algorithm mode (exclusive group với 4 nút)
         self._mode_group = QButtonGroup(self)
         self._mode_group.setExclusive(True)
 
-        self._btn_astar = _btn("A* + Q",    "fa5s.star",  "A* + Q-Learning [A]",    checkable=True)
-        self._btn_lrta  = _btn("LRTA* + Q", "fa5s.route", "LRTA* + Q-Learning [L]", checkable=True)
-        self._btn_astar.setChecked(True)
+        self._btn_astar = _btn("A* Thuần", "fa5s.star", checkable=True)
+        self._btn_lrta = _btn("LRTA* Thuần", "fa5s.route", checkable=True)
+        self._btn_astar_q = _btn("A* + Q", "fa5s.brain", checkable=True)
+        self._btn_lrta_q = _btn("LRTA* + Q", "fa5s.microchip", checkable=True)
+
+        # Mặc định chọn A* + Q
+        self._btn_astar_q.setChecked(True)
+
         self._mode_group.addButton(self._btn_astar)
         self._mode_group.addButton(self._btn_lrta)
-        self._btn_astar.clicked.connect(lambda: self.mode_changed.emit(config.MODE_ASTAR_Q))
-        self._btn_lrta.clicked.connect(lambda:  self.mode_changed.emit(config.MODE_LRTASTAR_Q))
+        self._mode_group.addButton(self._btn_astar_q)
+        self._mode_group.addButton(self._btn_lrta_q)
+
+        self._btn_astar.clicked.connect(lambda: self.mode_changed.emit(config.MODE_ASTAR))
+        self._btn_lrta.clicked.connect(lambda: self.mode_changed.emit(config.MODE_LRTASTAR))
+        self._btn_astar_q.clicked.connect(lambda: self.mode_changed.emit(config.MODE_ASTAR_Q))
+        self._btn_lrta_q.clicked.connect(lambda: self.mode_changed.emit(config.MODE_LRTASTAR_Q))
+
+        # Xếp thành 2 dòng
         v.addWidget(_grid_row(self._btn_astar, self._btn_lrta))
+        v.addWidget(_grid_row(self._btn_astar_q, self._btn_lrta_q))
 
         # Dòng 2: Rush Hour + Stop/Resume
         self._btn_rush  = _btn("Rush Hour", "fa5s.clock", "Giờ cao điểm [Ctrl+H]", checkable=True)
