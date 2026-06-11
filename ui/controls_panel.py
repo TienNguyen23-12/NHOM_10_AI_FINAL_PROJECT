@@ -44,7 +44,7 @@ def _col_header(text: str, icon_name: str) -> QWidget:
     w.setLayout(row)
     w.setFixedHeight(26)
     w.setStyleSheet(
-        "QWidget { background: #2C3E50; border-radius: 4px; }")
+        "QWidget { background: #16263F; border-radius: 4px; }")
     return w
 
 

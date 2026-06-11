@@ -10,8 +10,8 @@ C = {
     "bg":           "#F4F6F9",   # Nền app (xám sáng)
     "surface":      "#FFFFFF",   # Panels, cards
     "surface2":     "#F8F9FB",   # Inspector, subtle panels
-    "dark":         "#2C3E50",   # Header, sidebar title
-    "dark2":        "#34495E",   # Section headers
+    "dark":         "#16263F",   # Header, sidebar title (navy đậm)
+    "dark2":        "#1E3354",   # Section headers
     "accent":       "#3498DB",   # Hover, active border
     "accent_dk":    "#2980B9",   # Pressed
     "success":      "#27AE60",   # Checked/active button
@@ -26,9 +26,9 @@ C = {
     "text":         "#2C3E50",
     "text_muted":   "#717D7E",
     "text_inv":     "#FFFFFF",   # Text on dark bg
-    "text_title":   "#F1C40F",   # Yellow title on dark bg
-    "log_bg":       "#1C2833",   # Logger background
-    "log_border":   "#2E4057",
+    "text_title":   "#FFFFFF",   # Title on dark bg
+    "log_bg":       "#101D33",   # Logger background
+    "log_border":   "#23395B",
     "scrollbar":    "#AEB6BF",
     "splitter":     "#D5DBDB",
     "splitter_hov": "#3498DB",
@@ -56,13 +56,18 @@ QStackedWidget > QWidget {{
     background-color: {bg};
 }}
 
+/* Menu page — nền navy tối (QSS thắng palette nên phải set ở đây) */
+QWidget#menuPage {{
+    background-color: {dark};
+}}
+
 /* ── Buttons ─────────────────────────────────────────────────────── */
 QPushButton {{
     background-color: {neutral};
     color: {text_inv};
     border: none;
-    border-radius: 5px;
-    padding: 5px 10px;
+    border-radius: 7px;
+    padding: 4px 7px;
     font-weight: 600;
     font-size: 8.5pt;
     text-align: left;
@@ -97,12 +102,17 @@ QPushButton[center="true"] {{
     text-align: center;
     padding: 10px 20px;
     font-size: 10.5pt;
-    border: 2px solid {neutral};
+    border: 2px solid #3A506B;
+    border-radius: 10px;
     background-color: {dark2};
 }}
 QPushButton[center="true"]:hover {{
-    background-color: {accent};
-    border-color: {accent};
+    background-color: {danger};
+    border-color: {danger};
+}}
+QPushButton[center="true"]:pressed {{
+    background-color: {danger_dk};
+    border-color: {danger_dk};
 }}
 
 /* ── Labels ──────────────────────────────────────────────────────── */
@@ -209,7 +219,7 @@ QScrollArea > QWidget > QWidget {{
 QListWidget {{
     background: {surface2};
     border: 1px solid {border};
-    border-radius: 5px;
+    border-radius: 8px;
     outline: none;
     padding: 2px;
 }}

@@ -89,7 +89,7 @@ class SimulationPage(QWidget):
         right_v.addWidget(inspector_wrap, stretch=1)   # chiếm phần còn lại
 
         main_split.addWidget(right_widget)
-        main_split.setSizes([780, 460])
+        main_split.setSizes([720, 540])
         main_split.setStretchFactor(0, 1)
         main_split.setStretchFactor(1, 0)
         self._main_split = main_split
