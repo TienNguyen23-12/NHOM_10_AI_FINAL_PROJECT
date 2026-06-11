@@ -1,8 +1,4 @@
 # ui/controller.py
-# MVC Controller layer: chứa toàn bộ logic nghiệp vụ của simulation.
-# Thay thế SimulationApp (Pygame) bằng QObject thuần, không import pygame.
-# Views (GridCanvas, LoggerPanel...) kết nối qua Qt Signals.
-
 import json
 import os
 from PyQt6.QtCore import QObject, pyqtSignal as Signal, QTimer
@@ -16,8 +12,6 @@ from agents.lrtastar_q_agent import LRTALearningAgent
 
 
 class _LoggerProxy:
-    """Proxy nhận add_log() từ agents và forward lên Qt signal.
-    Giữ nguyên interface cũ (app_instance.logger.add_log) để không sửa agent code."""
     def __init__(self, signal: Signal):
         self._signal = signal
 
@@ -26,29 +20,17 @@ class _LoggerProxy:
 
 
 class SimulationController(QObject):
-    """Controller giữ toàn bộ trạng thái và logic simulation.
-
-    Agents tiếp tục gọi self.logger.add_log(), self.dispatcher,
-    self.global_q_brain, self.visualize_search — giống interface cũ của
-    SimulationApp — nên agent code không cần thay đổi.
-    """
-
-    # --- Signals cho View đăng ký ---
-    log_added      = Signal(str)   # LoggerPanel listen
-    grid_updated   = Signal()      # GridCanvas.update() trigger repaint
-    fleet_updated  = Signal()      # Fleet status label
-    status_changed = Signal()      # Status bar text
+    log_added = Signal(str)
+    grid_updated = Signal()
+    fleet_updated = Signal()
+    status_changed = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
-
-        # Proxy logger — agents gọi self.logger.add_log() như cũ
         self.logger = _LoggerProxy(self.log_added)
 
-        # --- Model layer ---
         self.env = GridMap()
-        self.env.grid = [[config.STATE_EMPTY] * config.GRID_SIZE
-                         for _ in range(config.GRID_SIZE)]
+        self.env.grid = [[config.STATE_EMPTY] * config.GRID_SIZE for _ in range(config.GRID_SIZE)]
         config.HOSPITAL_CONFIG.clear()
 
         self.global_q_brain = QLearningModel()
@@ -58,37 +40,27 @@ class SimulationController(QObject):
         self.active_agents: list = []
         self.pending_accidents: list = []
 
-        # --- Trạng thái simulation ---
-        self.is_paused        = False
-        self.current_mode     = config.MODE_ASTAR_Q
-        self.current_hour     = 12
-        self.brush_mode       = 'ACCIDENT'
+        self.is_paused = False
+        self.current_mode = getattr(config, 'MODE_ASTAR_Q', 3)
+        self.current_hour = 12
+        self.brush_mode = 'ACCIDENT'
         self.visualize_search = False
 
-        # Dữ liệu visualizer (dùng bởi GridCanvas khi vẽ overlay)
-        self.dispatch_generator  = None
-        self.dispatch_vis_data   = None   # (open_set, visited, path, h_name)
-        self._vis_active         = False  # True khi đang animate
+        self.dispatch_generator = None
+        self.dispatch_vis_data = None
+        self._vis_active = False
 
-        # --- Qt Timers (thay game loop của Pygame) ---
-        # Mỗi 200ms: bước logic simulation (agent di chuyển)
         self._sim_timer = QTimer(self)
         self._sim_timer.setInterval(200)
         self._sim_timer.timeout.connect(self._on_sim_tick)
 
-        # Mỗi 120ms: step visualizer frame (A* search animation)
         self._vis_timer = QTimer(self)
         self._vis_timer.setInterval(120)
         self._vis_timer.timeout.connect(self._on_vis_tick)
 
-        # Mỗi 33ms (~30 FPS): trigger repaint của GridCanvas
         self._render_timer = QTimer(self)
         self._render_timer.setInterval(33)
         self._render_timer.timeout.connect(self.grid_updated)
-
-    # ------------------------------------------------------------------ #
-    #  Lifecycle                                                           #
-    # ------------------------------------------------------------------ #
 
     def start_timers(self):
         self._sim_timer.start()
@@ -100,36 +72,20 @@ class SimulationController(QObject):
         self._vis_timer.stop()
         self._render_timer.stop()
 
-    # ------------------------------------------------------------------ #
-    #  Timer callbacks                                                     #
-    # ------------------------------------------------------------------ #
-
     def _on_sim_tick(self):
-        """Chạy mỗi 200ms: quản lý hàng chờ và bước logic agents."""
-        if self.is_paused:
-            return
+        if self.is_paused: return
         self.manage_queue()
-        # Không chạy simulation khi đang visualize để không bỏ qua animation
         if not self._vis_active:
             self.update_simulation()
 
     def _on_vis_tick(self):
-        """Chạy mỗi 120ms: step một frame của search visualizer."""
-        if self.is_paused:
-            return
+        if self.is_paused: return
         self._vis_active = self.update_visualizer()
 
-    # ------------------------------------------------------------------ #
-    #  Core simulation logic (giữ nguyên so với SimulationApp cũ)         #
-    # ------------------------------------------------------------------ #
-
     def manage_queue(self):
-        if self.dispatch_generator is not None:
-            return
-        if not self.pending_accidents:
-            return
-        if sum(self.dispatcher.current_cars.values()) <= 0:
-            return
+        if self.dispatch_generator is not None: return
+        if not self.pending_accidents: return
+        if sum(self.dispatcher.current_cars.values()) <= 0: return
 
         acc_pos = self.pending_accidents[0]
 
@@ -144,17 +100,13 @@ class SimulationController(QObject):
                 self.active_agents.append(agent)
                 self.pending_accidents.pop(0)
                 self.logger.add_log(
-                    f"-> [DISPATCH] Đã chốt xe từ trạm {h_name}. "
-                    f"Còn {len(self.pending_accidents)} ca chờ.")
+                    f"-> [DISPATCH] Đã chốt xe từ trạm {h_name}. Còn {len(self.pending_accidents)} ca chờ.")
                 self.fleet_updated.emit()
             else:
                 self.pending_accidents.pop(0)
-                self.logger.add_log(
-                    f"[DISPATCH] TỪ CHỐI: Lỗi chặn đường đến {acc_pos}! Đã hủy ca.")
+                self.logger.add_log(f"[DISPATCH] TỪ CHỐI: Lỗi chặn đường đến {acc_pos}! Đã hủy ca.")
 
     def update_visualizer(self) -> bool:
-        """Step một frame animation. Trả về True nếu vẫn còn đang animate."""
-        # --- Dispatch visualizer (quét từng bệnh viện) ---
         if self.dispatch_generator:
             try:
                 open_set, visited, current_path, h_name, is_done = next(self.dispatch_generator)
@@ -162,41 +114,39 @@ class SimulationController(QObject):
 
                 if is_done:
                     self.dispatch_generator = None
-                    self.dispatch_vis_data  = None
+                    self.dispatch_vis_data = None
                     if h_name and current_path:
-                        agent = self._create_agent(
-                            config.HOSPITAL_CONFIG[h_name]["pos"], current_path[-1])
-                        if self.visualize_search and self.current_mode == config.MODE_ASTAR_Q:
-                            agent.search_generator = agent.search_path_generator(self.env)
+                        agent = self._create_agent(config.HOSPITAL_CONFIG[h_name]["pos"], current_path[-1])
+
+                        # --- ĐÃ FIX: Cho phép A* Thuần dùng Visualizer, bổ sung truyền self (app_instance) ---
+                        if self.visualize_search and self.current_mode in (getattr(config, 'MODE_ASTAR', 1),
+                                                                           getattr(config, 'MODE_ASTAR_Q', 3)):
+                            agent.search_generator = agent.search_path_generator(self.env, self)
                         else:
                             agent.calculated_path = current_path
+
                         self.active_agents.append(agent)
                         self.dispatcher.current_cars[h_name] -= 1
-                        if self.pending_accidents:
-                            self.pending_accidents.pop(0)
+                        if self.pending_accidents: self.pending_accidents.pop(0)
                         self.logger.add_log(
-                            f"-> [DISPATCH] Đã chốt xe từ trạm {h_name}. "
-                            f"Còn {len(self.pending_accidents)} ca chờ.")
+                            f"-> [DISPATCH] Đã chốt xe từ trạm {h_name}. Còn {len(self.pending_accidents)} ca chờ.")
                         self.fleet_updated.emit()
                     else:
-                        if self.pending_accidents:
-                            self.pending_accidents.pop(0)
-                        self.logger.add_log(
-                            "[DISPATCH] TỪ CHỐI: Các trạm đã hết xe hoặc kẹt đường!")
+                        if self.pending_accidents: self.pending_accidents.pop(0)
+                        self.logger.add_log("[DISPATCH] TỪ CHỐI: Các trạm đã hết xe hoặc kẹt đường!")
             except StopIteration:
                 self.dispatch_generator = None
             return True
 
-        # --- Agent search visualizer (A* path animation) ---
         for agent in self.active_agents:
             if hasattr(agent, 'search_generator') and agent.search_generator:
                 try:
                     open_set, visited, current_path, is_done = next(agent.search_generator)
                     agent.vis_open_set = open_set
-                    agent.vis_visited  = visited
-                    agent.vis_path     = current_path
+                    agent.vis_visited = visited
+                    agent.vis_path = current_path
                     if is_done:
-                        agent.calculated_path  = current_path
+                        agent.calculated_path = current_path
                         agent.search_generator = None
                 except StopIteration:
                     agent.search_generator = None
@@ -205,10 +155,8 @@ class SimulationController(QObject):
         return False
 
     def update_simulation(self):
-        """Bước logic: di chuyển tất cả agent một ô, cập nhật Q-table."""
         for agent in self.active_agents:
-            if agent.is_finished:
-                continue
+            if agent.is_finished: continue
             old_pos = agent.current_pos
 
             if isinstance(agent, LRTALearningAgent):
@@ -216,33 +164,29 @@ class SimulationController(QObject):
             else:
                 agent.update_astar_return_logic(self.env, self)
 
+            # --- ĐÃ FIX: Chỉ cập nhật Q-Table cho A* nếu đang ở chế độ Q-Learning ---
             if agent.current_pos != old_pos and isinstance(agent, AStarQAgent):
-                dr = agent.current_pos[0] - old_pos[0]
-                dc = agent.current_pos[1] - old_pos[1]
-                if (dr, dc) in self.global_q_brain.actions:
-                    action_idx = self.global_q_brain.actions.index((dr, dc))
-                    reward = -self.env.get_cost(agent.current_pos)
-                    if agent.current_pos == agent.goal_pos:
-                        reward = config.REWARD_GOAL
-                    self.global_q_brain.update_q_value(old_pos, action_idx, reward, agent.current_pos)
+                if self.current_mode == getattr(config, 'MODE_ASTAR_Q', 3):
+                    dr = agent.current_pos[0] - old_pos[0]
+                    dc = agent.current_pos[1] - old_pos[1]
+                    if (dr, dc) in self.global_q_brain.actions:
+                        action_idx = self.global_q_brain.actions.index((dr, dc))
+                        reward = -self.env.get_cost(agent.current_pos)
+                        if agent.current_pos == agent.goal_pos:
+                            reward = getattr(config, 'REWARD_GOAL', 100)
+                        self.global_q_brain.update_q_value(old_pos, action_idx, reward, agent.current_pos)
 
-        # Dọn agent đã hoàn thành (không xóa trong loop để tránh lỗi index)
         self.active_agents = [a for a in self.active_agents if not a.is_finished]
         self.fleet_updated.emit()
 
-    # ------------------------------------------------------------------ #
-    #  Map setup                                                           #
-    # ------------------------------------------------------------------ #
-
     def setup_default_map(self):
         config.GRID_SIZE = 20
-        self.env.grid = [[config.STATE_EMPTY] * config.GRID_SIZE
-                         for _ in range(config.GRID_SIZE)]
+        self.env.grid = [[config.STATE_EMPTY] * config.GRID_SIZE for _ in range(config.GRID_SIZE)]
         config.HOSPITAL_CONFIG.clear()
         config.HOSPITAL_CONFIG.update({
-            "HOSPITAL_1": {"pos": (2, 2),   "max_cars": 2},
-            "HOSPITAL_2": {"pos": (2, 17),  "max_cars": 3},
-            "HOSPITAL_3": {"pos": (17, 9),  "max_cars": 2},
+            "HOSPITAL_1": {"pos": (2, 2), "max_cars": 2},
+            "HOSPITAL_2": {"pos": (2, 17), "max_cars": 3},
+            "HOSPITAL_3": {"pos": (17, 9), "max_cars": 2},
         })
         self.env.generate_default_map()
         self.dispatcher.hospitals = config.HOSPITAL_CONFIG
@@ -255,8 +199,7 @@ class SimulationController(QObject):
 
     def setup_sandbox_map(self):
         config.GRID_SIZE = 20
-        self.env.grid = [[config.STATE_EMPTY] * config.GRID_SIZE
-                         for _ in range(config.GRID_SIZE)]
+        self.env.grid = [[config.STATE_EMPTY] * config.GRID_SIZE for _ in range(config.GRID_SIZE)]
         config.HOSPITAL_CONFIG.clear()
         self.dispatcher.reset_resources()
         self.active_agents.clear()
@@ -271,43 +214,33 @@ class SimulationController(QObject):
         self.pending_accidents.clear()
         config.HOSPITAL_CONFIG.clear()
         self.dispatcher.reset_resources()
-        self.env.grid = [[config.STATE_EMPTY] * config.GRID_SIZE
-                         for _ in range(config.GRID_SIZE)]
+        self.env.grid = [[config.STATE_EMPTY] * config.GRID_SIZE for _ in range(config.GRID_SIZE)]
         self.fleet_updated.emit()
         self.grid_updated.emit()
 
-    # ------------------------------------------------------------------ #
-    #  Cell interaction (từ GridCanvas mouse events)                       #
-    # ------------------------------------------------------------------ #
-
     def place_accident(self, row: int, col: int) -> bool:
-        if self.env.grid[row][col] != config.STATE_EMPTY:
-            return False
+        if self.env.grid[row][col] != config.STATE_EMPTY: return False
         pos = (row, col)
         self.env.grid[row][col] = config.STATE_ACCIDENT
         self.env.accidents_pool.append(pos)
         self.pending_accidents.append(pos)
-        self.logger.add_log(
-            f"[ALERT] Tai nạn tại {pos} đã được đưa vào HÀNG CHỜ ({len(self.pending_accidents)}).")
+        self.logger.add_log(f"[ALERT] Tai nạn tại {pos} đã được đưa vào HÀNG CHỜ ({len(self.pending_accidents)}).")
         return True
 
     def place_wall(self, row: int, col: int) -> bool:
-        if self.env.grid[row][col] != config.STATE_EMPTY:
-            return False
+        if self.env.grid[row][col] != config.STATE_EMPTY: return False
         self.env.grid[row][col] = config.STATE_WALL
         return True
 
     def place_traffic(self, row: int, col: int) -> bool:
-        if self.env.grid[row][col] != config.STATE_EMPTY:
-            return False
+        if self.env.grid[row][col] != config.STATE_EMPTY: return False
         self.env.grid[row][col] = config.STATE_TRAFFIC
         return True
 
     def erase_cell(self, row: int, col: int):
         curr = self.env.grid[row][col]
         if curr == config.STATE_HOSPITAL:
-            key = next((k for k, v in config.HOSPITAL_CONFIG.items()
-                        if v["pos"] == (row, col)), None)
+            key = next((k for k, v in config.HOSPITAL_CONFIG.items() if v["pos"] == (row, col)), None)
             if key:
                 config.HOSPITAL_CONFIG.pop(key)
                 self.dispatcher.current_cars.pop(key, None)
@@ -327,14 +260,15 @@ class SimulationController(QObject):
         self.logger.add_log(f"[STATION] Setup depot {name} with: {car_count} units.")
         self.fleet_updated.emit()
 
-    # ------------------------------------------------------------------ #
-    #  Action toggles (từ ControlsPanel buttons)                          #
-    # ------------------------------------------------------------------ #
-
     def set_mode(self, mode: int):
         self.current_mode = mode
-        label = 'A* + Q' if mode == config.MODE_ASTAR_Q else 'LRTA* + Q'
-        self.logger.add_log(f"[SYSTEM] Switched execution to: {label}")
+        labels = {
+            getattr(config, 'MODE_ASTAR', 1): 'A* Thuần (No AI)',
+            getattr(config, 'MODE_LRTASTAR', 2): 'LRTA* Thuần (No AI)',
+            getattr(config, 'MODE_ASTAR_Q', 3): 'A* + Q-Learning',
+            getattr(config, 'MODE_LRTASTAR_Q', 4): 'LRTA* + Q-Learning'
+        }
+        self.logger.add_log(f"[SYSTEM] Switched execution to: {labels.get(mode, 'Unknown')}")
         self.status_changed.emit()
 
     def set_brush(self, mode: str):
@@ -342,8 +276,7 @@ class SimulationController(QObject):
 
     def toggle_pause(self) -> bool:
         self.is_paused = not self.is_paused
-        self.logger.add_log(
-            f"[SYSTEM] Simulation {'PAUSED' if self.is_paused else 'RESUMED'}.")
+        self.logger.add_log(f"[SYSTEM] Simulation {'PAUSED' if self.is_paused else 'RESUMED'}.")
         return self.is_paused
 
     def toggle_rush_hour(self) -> int:
@@ -360,30 +293,25 @@ class SimulationController(QObject):
         return self.visualize_search
 
     def _flush_visualizer(self):
-        """Drain generators ngay khi visualizer bị tắt (không để lag)."""
         if self.dispatch_generator:
             try:
                 while True:
                     _, _, path, h_name, is_done = next(self.dispatch_generator)
                     if is_done:
                         if h_name and path:
-                            agent = self._create_agent(
-                                config.HOSPITAL_CONFIG[h_name]["pos"], path[-1])
+                            agent = self._create_agent(config.HOSPITAL_CONFIG[h_name]["pos"], path[-1])
                             agent.calculated_path = path
                             self.active_agents.append(agent)
                             self.dispatcher.current_cars[h_name] -= 1
-                            if self.pending_accidents:
-                                self.pending_accidents.pop(0)
-                            self.logger.add_log(
-                                f"-> [DISPATCH] Xả đệm: Đã chốt xe từ trạm {h_name}.")
+                            if self.pending_accidents: self.pending_accidents.pop(0)
+                            self.logger.add_log(f"-> [DISPATCH] Xả đệm: Đã chốt xe từ trạm {h_name}.")
                         else:
-                            if self.pending_accidents:
-                                self.pending_accidents.pop(0)
+                            if self.pending_accidents: self.pending_accidents.pop(0)
                         break
             except StopIteration:
                 pass
             self.dispatch_generator = None
-            self.dispatch_vis_data   = None
+            self.dispatch_vis_data = None
 
         for agent in self.active_agents:
             if hasattr(agent, 'search_generator') and agent.search_generator:
@@ -397,14 +325,10 @@ class SimulationController(QObject):
                     pass
                 agent.search_generator = None
 
-    # ------------------------------------------------------------------ #
-    #  Map I/O & resize                                                    #
-    # ------------------------------------------------------------------ #
-
     def resize_map(self, delta: int) -> bool:
         new_size = config.GRID_SIZE + delta
-        if new_size < config.MIN_GRID or new_size > config.MAX_GRID:
-            self.logger.add_log("[ERROR] Kích thước bản đồ đạt giới hạn an toàn (10-100).")
+        if new_size < getattr(config, 'MIN_GRID', 10) or new_size > getattr(config, 'MAX_GRID', 100):
+            self.logger.add_log("[ERROR] Kích thước bản đồ đạt giới hạn an toàn.")
             return False
 
         new_grid = [[config.STATE_EMPTY] * new_size for _ in range(new_size)]
@@ -413,29 +337,21 @@ class SimulationController(QObject):
             for c in range(min_s):
                 new_grid[r][c] = self.env.grid[r][c]
 
-        self.env.accidents_pool = [
-            p for p in self.env.accidents_pool if p[0] < new_size and p[1] < new_size]
-        self.pending_accidents = [
-            p for p in self.pending_accidents if p[0] < new_size and p[1] < new_size]
+        self.env.accidents_pool = [p for p in self.env.accidents_pool if p[0] < new_size and p[1] < new_size]
+        self.pending_accidents = [p for p in self.pending_accidents if p[0] < new_size and p[1] < new_size]
 
-        for h in [n for n, i in config.HOSPITAL_CONFIG.items()
-                  if i["pos"][0] >= new_size or i["pos"][1] >= new_size]:
+        for h in [n for n, i in config.HOSPITAL_CONFIG.items() if i["pos"][0] >= new_size or i["pos"][1] >= new_size]:
             config.HOSPITAL_CONFIG.pop(h)
             self.dispatcher.current_cars.pop(h, None)
 
-        # Xóa agents đang ở vị trí ngoài bản đồ mới — tránh IndexError tick tiếp theo
-        removed = [a for a in self.active_agents
-                   if a.current_pos[0] >= new_size or a.current_pos[1] >= new_size]
+        removed = [a for a in self.active_agents if a.current_pos[0] >= new_size or a.current_pos[1] >= new_size]
         if removed:
-            self.logger.add_log(
-                f"[SYSTEM] Đã hủy {len(removed)} agent ngoài vùng bản đồ mới.")
-        self.active_agents = [a for a in self.active_agents
-                              if a not in removed]
+            self.logger.add_log(f"[SYSTEM] Đã hủy {len(removed)} agent ngoài vùng bản đồ mới.")
+        self.active_agents = [a for a in self.active_agents if a not in removed]
 
-        self.env.grid    = new_grid
+        self.env.grid = new_grid
         config.GRID_SIZE = new_size
-        self.logger.add_log(
-            f"[SYSTEM] Kích thước lưới bản đồ được điều chỉnh thành {new_size}x{new_size}.")
+        self.logger.add_log(f"[SYSTEM] Kích thước lưới bản đồ được điều chỉnh thành {new_size}x{new_size}.")
         self.fleet_updated.emit()
         self.grid_updated.emit()
         return True
@@ -443,7 +359,7 @@ class SimulationController(QObject):
     def save_map(self, filepath: str = "custom_map_layout.json"):
         data = {
             "grid_size": config.GRID_SIZE,
-            "grid":      self.env.grid,
+            "grid": self.env.grid,
             "hospitals": config.HOSPITAL_CONFIG,
         }
         try:
@@ -464,7 +380,7 @@ class SimulationController(QObject):
             self.env.accidents_pool.clear()
             self.pending_accidents.clear()
             config.GRID_SIZE = data["grid_size"]
-            self.env.grid    = data["grid"]
+            self.env.grid = data["grid"]
             config.HOSPITAL_CONFIG.clear()
             for k, v in data["hospitals"].items():
                 config.HOSPITAL_CONFIG[k] = {"pos": tuple(v["pos"]), "max_cars": v["max_cars"]}
@@ -489,30 +405,26 @@ class SimulationController(QObject):
         self.global_q_brain.load_brain()
         self.logger.add_log("[SYSTEM] Restored AI Brain from JSON.")
 
-    # ------------------------------------------------------------------ #
-    #  Helpers cho View                                                    #
-    # ------------------------------------------------------------------ #
-
     def get_status_text(self) -> str:
-        mode = ('A* + Q-Learning' if self.current_mode == config.MODE_ASTAR_Q
-                else 'LRTA* + Q-Learning')
+        labels = {
+            getattr(config, 'MODE_ASTAR', 1): 'A* (Pure)',
+            getattr(config, 'MODE_LRTASTAR', 2): 'LRTA* (Pure)',
+            getattr(config, 'MODE_ASTAR_Q', 3): 'A* + Q',
+            getattr(config, 'MODE_LRTASTAR_Q', 4): 'LRTA* + Q'
+        }
+        mode = labels.get(self.current_mode, "Unknown")
         return (f"Timetable: {self.current_hour}h00  |  "
                 f"Solver Engine: {mode}  |  "
                 f"Queue: {len(self.pending_accidents)} waiting")
 
     def get_fleet_text(self) -> str | None:
-        if not self.dispatcher.current_cars:
-            return None
+        if not self.dispatcher.current_cars: return None
         parts = []
         for k, v in self.dispatcher.current_cars.items():
             pos = self.dispatcher.hospitals.get(k, {}).get("pos")
             label = f"H({pos[0]},{pos[1]})" if pos else k
             parts.append(f"{label}: {v} units")
         return "   |   ".join(parts)
-
-    # ------------------------------------------------------------------ #
-    #  Inspector data builders                                             #
-    # ------------------------------------------------------------------ #
 
     def build_q_table_lines(self) -> list[str]:
         lines = ["--- LIVE BACKEND Q-TABLE METRICS ---"]
@@ -547,11 +459,10 @@ class SimulationController(QObject):
             lines.append(f"  Traversed: {len(car.path)} blocks.")
         return lines
 
-    # ------------------------------------------------------------------ #
-    #  Internal helpers                                                    #
-    # ------------------------------------------------------------------ #
-
+    # --- ĐÃ FIX CĂN CƠ LỖI NHÀ MÁY ĐẺ XE ---
     def _create_agent(self, start, goal):
-        if self.current_mode == config.MODE_ASTAR_Q:
+        # Nếu là nhóm A* (bao gồm cả Thuần và có Q), đẻ xe A*
+        if self.current_mode in (getattr(config, 'MODE_ASTAR', 1), getattr(config, 'MODE_ASTAR_Q', 3)):
             return AStarQAgent(start, goal)
+        # Các trường hợp còn lại đẻ xe LRTA*
         return LRTALearningAgent(start, goal)
