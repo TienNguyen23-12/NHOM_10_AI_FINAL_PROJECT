@@ -1,11 +1,14 @@
 # ui/grid_canvas.py
-# GridCanvas: render grid với rounded corners, hover preview, agents, overlays.
+# GridCanvas: render grid với rounded corners, icon trên ô, hover preview,
+# agents (xe cứu thương + đèn ưu tiên), overlays và legend.
+
+import qtawesome as qta
 
 from PyQt6.QtWidgets import QWidget, QSizePolicy
-from PyQt6.QtCore    import Qt, QPoint, QRectF, pyqtSignal
+from PyQt6.QtCore    import Qt, QPoint, QPointF, QRectF, pyqtSignal
 from PyQt6.QtGui     import (
     QPainter, QColor, QPen, QBrush, QTransform, QCursor,
-    QLinearGradient, QPainterPath
+    QLinearGradient, QPainterPath, QPixmap, QFont
 )
 
 import config
@@ -16,7 +19,7 @@ _CELL_COLORS = {
     config.STATE_WALL:     QColor(44,  62,  80),   # Xanh đen
     config.STATE_TRAFFIC:  QColor(230, 126, 34),   # Cam
     config.STATE_ACCIDENT: QColor(231, 76,  60),   # Đỏ
-    config.STATE_HOSPITAL: QColor(142, 68, 173),   # Tím
+    config.STATE_HOSPITAL: QColor(22, 160, 133),   # Xanh y tế
 }
 # Gradient highlight cho mỗi state (màu sáng hơn ở góc trên-trái)
 _CELL_HIGHLIGHT = {
@@ -24,7 +27,7 @@ _CELL_HIGHLIGHT = {
     config.STATE_WALL:     QColor(80,  100, 120, 60),
     config.STATE_TRAFFIC:  QColor(255, 180, 100, 100),
     config.STATE_ACCIDENT: QColor(255, 140, 120, 100),
-    config.STATE_HOSPITAL: QColor(200, 130, 240, 100),
+    config.STATE_HOSPITAL: QColor(120, 220, 200, 100),
 }
 
 _CANVAS_BG  = QColor(229, 234, 240)   # Nền xám xanh
@@ -33,11 +36,40 @@ _GRID_LINE  = QColor(200, 210, 220)   # Đường lưới
 # Hover brush preview colors (fill bán trong suốt)
 _HOVER_COLORS = {
     'ACCIDENT': QColor(231, 76,  60,  140),
-    'HOSPITAL': QColor(142, 68, 173,  140),
+    'HOSPITAL': QColor(22, 160, 133,  140),
     'WALL':     QColor(44,  62,  80,  140),
     'TRAFFIC':  QColor(230, 126, 34,  140),
     'ERASE':    QColor(189, 195, 199, 140),
 }
+
+# ── Cell icons (qtawesome, cache pixmap độ phân giải cao) ─────────────
+_ICON_SRC_PX = 96   # render 1 lần ở 96px, scale mượt theo zoom
+
+_CELL_ICONS = {
+    config.STATE_ACCIDENT: ("fa5s.user-injured", "#FFFFFF"),  # Nạn nhân
+    config.STATE_HOSPITAL: ("fa5s.plus",         "#FFFFFF"),  # Chữ thập y tế
+    config.STATE_TRAFFIC:  ("fa5s.car-side",     "#FFFFFF"),  # Kẹt xe
+}
+# Icon ghost khi hover theo brush đang chọn
+_BRUSH_ICONS = {
+    'ACCIDENT': ("fa5s.user-injured", "#FFFFFF"),
+    'HOSPITAL': ("fa5s.plus",         "#FFFFFF"),
+    'TRAFFIC':  ("fa5s.car-side",     "#FFFFFF"),
+    'WALL':     ("fa5s.th-large",     "#FFFFFF"),
+    'ERASE':    ("fa5s.eraser",       "#FFFFFF"),
+}
+
+_PIX_CACHE: dict = {}
+
+
+def _pix(name: str, color: str) -> QPixmap:
+    """Pixmap cache cho icon qtawesome (key = name+color)."""
+    key = (name, color)
+    pm = _PIX_CACHE.get(key)
+    if pm is None:
+        pm = qta.icon(name, color=color).pixmap(_ICON_SRC_PX, _ICON_SRC_PX)
+        _PIX_CACHE[key] = pm
+    return pm
 
 _ZOOM_MIN = 0.12
 _ZOOM_MAX = 14.0
@@ -127,6 +159,16 @@ class GridCanvas(QWidget):
                 painter.setPen(QPen(hover_color.darker(130), 1.5))
                 painter.setBrush(QBrush(hover_color))
                 painter.drawRoundedRect(QRectF(x, y, w, w), r_abs, r_abs)
+                # Icon ghost theo brush đang chọn
+                icon_def = _BRUSH_ICONS.get(self._ctrl.brush_mode)
+                if icon_def:
+                    pm = _pix(*icon_def)
+                    s  = w * 0.6
+                    painter.setOpacity(0.75)
+                    painter.drawPixmap(
+                        QRectF(x + (w - s) / 2, y + (w - s) / 2, s, s),
+                        pm, QRectF(pm.rect()))
+                    painter.setOpacity(1.0)
 
         # ── 4. Visualizer overlays ─────────────────────────────────
         if self._ctrl.dispatch_vis_data:
@@ -148,7 +190,59 @@ class GridCanvas(QWidget):
         for agent in self._ctrl.active_agents:
             self._draw_agent(painter, agent, cs)
 
+        # ── 6. Legend (cố định góc dưới-trái, không theo zoom/pan) ─
+        painter.setTransform(QTransform())
+        self._draw_legend(painter)
+
         painter.end()
+
+    # ── Legend renderer ───────────────────────────────────────────
+
+    _LEGEND_ITEMS = [
+        (QColor(231, 76,  60), "fa5s.user-injured", "Tai nạn"),
+        (QColor(22, 160, 133), "fa5s.plus",         "Bệnh viện"),
+        (QColor(230, 126, 34), "fa5s.car-side",     "Kẹt xe"),
+        (QColor(44,  62,  80), "fa5s.th-large",     "Tường"),
+        (QColor(52, 152, 219), "fa5s.ambulance",    "Xe cứu thương"),
+    ]
+
+    def _draw_legend(self, painter: QPainter):
+        font = QFont("Segoe UI", 8)
+        painter.setFont(font)
+        fm = painter.fontMetrics()
+
+        badge, gap_i, gap_g, pad = 18, 5, 14, 10
+        width = pad * 2 + sum(
+            badge + gap_i + fm.horizontalAdvance(label) + gap_g
+            for _, _, label in self._LEGEND_ITEMS) - gap_g
+        height = 30
+        x0 = 10
+        y0 = self.height() - height - 10
+        if width + 20 > self.width():     # Canvas quá hẹp — ẩn legend
+            return
+
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QBrush(QColor(22, 38, 63, 215)))
+        painter.drawRoundedRect(QRectF(x0, y0, width, height), 8, 8)
+
+        x = x0 + pad
+        cy = y0 + height / 2
+        for color, icon, label in self._LEGEND_ITEMS:
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QBrush(color))
+            painter.drawRoundedRect(
+                QRectF(x, cy - badge / 2, badge, badge), 4, 4)
+            pm = _pix(icon, "#FFFFFF")
+            s  = badge * 0.66
+            painter.drawPixmap(
+                QRectF(x + (badge - s) / 2, cy - s / 2, s, s),
+                pm, QRectF(pm.rect()))
+            x += badge + gap_i
+            painter.setPen(QColor(236, 240, 245))
+            painter.drawText(
+                QRectF(x, y0, fm.horizontalAdvance(label) + 2, height),
+                Qt.AlignmentFlag.AlignVCenter, label)
+            x += fm.horizontalAdvance(label) + gap_g
 
     # ── Cell renderer ─────────────────────────────────────────────
 
@@ -188,6 +282,37 @@ class GridCanvas(QWidget):
             painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.drawRoundedRect(rect, radius, radius)
 
+            # Icon / hoa văn theo loại ô
+            if state == config.STATE_WALL:
+                self._draw_brick_pattern(painter, rect, radius)
+            else:
+                icon_def = _CELL_ICONS.get(state)
+                if icon_def:
+                    pm = _pix(*icon_def)
+                    s  = w * 0.62
+                    tgt = QRectF(x + (w - s) / 2, y + (w - s) / 2, s, s)
+                    painter.drawPixmap(tgt, pm, QRectF(pm.rect()))
+
+    @staticmethod
+    def _draw_brick_pattern(painter: QPainter, rect: QRectF, radius: float):
+        """Hoa văn gạch (mạch vữa sáng) trên ô tường."""
+        painter.save()
+        clip = QPainterPath()
+        clip.addRoundedRect(rect, radius, radius)
+        painter.setClipPath(clip)
+
+        x, y, w = rect.x(), rect.y(), rect.width()
+        painter.setPen(QPen(QColor(255, 255, 255, 38), max(0.8, w * 0.05)))
+        y1, y2 = y + w / 3, y + 2 * w / 3
+        painter.drawLine(QPointF(x, y1), QPointF(x + w, y1))
+        painter.drawLine(QPointF(x, y2), QPointF(x + w, y2))
+        # Mạch dọc so le như tường gạch thật
+        painter.drawLine(QPointF(x + w * 0.50, y),  QPointF(x + w * 0.50, y1))
+        painter.drawLine(QPointF(x + w * 0.25, y1), QPointF(x + w * 0.25, y2))
+        painter.drawLine(QPointF(x + w * 0.75, y1), QPointF(x + w * 0.75, y2))
+        painter.drawLine(QPointF(x + w * 0.50, y2), QPointF(x + w * 0.50, y + w))
+        painter.restore()
+
     # ── Overlay renderer ──────────────────────────────────────────
 
     def _draw_overlay(self, painter: QPainter, cells,
@@ -203,8 +328,7 @@ class GridCanvas(QWidget):
     # ── Agent renderer ────────────────────────────────────────────
 
     def _draw_agent(self, painter: QPainter, agent, cs: int):
-        color  = QColor(*agent.color)
-        shadow = QColor(0, 0, 0, 60)
+        color = QColor(*agent.color)
 
         # Trail lines
         if len(agent.path) > 1:
@@ -220,25 +344,41 @@ class GridCanvas(QWidget):
                     c2 * cs + cs // 2, r2 * cs + cs // 2,
                 )
 
-        # Agent circle với shadow
+        # Badge xe cứu thương (rounded rect màu agent + icon ambulance)
         row, col = agent.current_pos
-        cx  = col * cs + cs // 2
-        cy  = row * cs + cs // 2
-        rad = cs // 3
+        pad  = cs * 0.10
+        rect = QRectF(col * cs + pad, row * cs + pad, cs - pad * 2, cs - pad * 2)
+        rad  = cs * 0.22
 
-        # Drop shadow
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QBrush(shadow))
-        painter.drawEllipse(cx - rad + 1, cy - rad + 2, rad * 2, rad * 2)
+        painter.setBrush(QBrush(QColor(0, 0, 0, 70)))           # Drop shadow
+        painter.drawRoundedRect(rect.translated(1, 2), rad, rad)
 
-        # Main circle
         painter.setBrush(QBrush(color))
-        painter.drawEllipse(cx - rad, cy - rad, rad * 2, rad * 2)
+        painter.drawRoundedRect(rect, rad, rad)
+        painter.setPen(QPen(QColor(255, 255, 255, 200), max(0.8, cs * 0.04)))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawRoundedRect(rect, rad, rad)
 
-        # Highlight spot
-        hi = QColor(255, 255, 255, 100)
-        painter.setBrush(QBrush(hi))
-        painter.drawEllipse(cx - rad // 2, cy - rad, rad, rad)
+        pm = _pix("fa5s.ambulance", "#FFFFFF")
+        s  = rect.width() * 0.74
+        painter.drawPixmap(
+            QRectF(rect.center().x() - s / 2,
+                   rect.center().y() - s / 2 + cs * 0.02, s, s),
+            pm, QRectF(pm.rect()))
+
+        # Đèn ưu tiên nhấp nháy — đổi màu đỏ/xanh theo mỗi bước di chuyển
+        blink  = len(agent.path) % 2 == 0
+        red    = QColor(231, 76, 60)
+        blue   = QColor(52, 152, 219)
+        r      = cs * 0.09
+        painter.setPen(QPen(QColor(255, 255, 255, 180), max(0.6, cs * 0.02)))
+        painter.setBrush(QBrush(red if blink else blue))
+        painter.drawEllipse(QPointF(rect.left() + rect.width() * 0.30,
+                                    rect.top() + r * 0.2), r, r)
+        painter.setBrush(QBrush(blue if blink else red))
+        painter.drawEllipse(QPointF(rect.left() + rect.width() * 0.70,
+                                    rect.top() + r * 0.2), r, r)
 
     # ------------------------------------------------------------------ #
     #  Mouse                                                               #
