@@ -106,7 +106,8 @@ class AStarQAgent(BaseAgent):
                 return
 
             self.path_index += 1
-            self.move_to(self.calculated_path[self.path_index])
+            cost = grid_map.get_cost(self.calculated_path[self.path_index])
+            self.move_to(self.calculated_path[self.path_index], cost)
 
         # --- NẾU ĐÃ CHẠM ĐÍCH CỦA GIAI ĐOẠN HIỆN TẠI ---
         else:
@@ -144,6 +145,7 @@ class AStarQAgent(BaseAgent):
             # Giai đoạn 1 -> 2: Thả bệnh nhân -> Quay về trạm gốc
             elif phase == 1:
                 self.mission_phase = 2
+                app_instance.logger.add_log(f"[A*] Đã đưa bệnh nhân đến bệnh viện! Tổng quãng đường: {self.total_distance} ô, Thời gian: {self.total_time} phút.")
                 self.start_pos = self.current_pos
                 self.goal_pos = self.original_hospital_pos
                 self.path = [self.current_pos]

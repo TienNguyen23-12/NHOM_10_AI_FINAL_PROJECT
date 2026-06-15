@@ -14,6 +14,9 @@ class BaseAgent:
         self.path = [start_pos]
         self.is_finished = False
 
+        self.total_distance = 0
+        self.total_time = 0
+
         # --- ĐÃ SỬA: Thay is_returning bằng mission_phase ---
         # 0: Đang đến chỗ tai nạn
         # 1: Đang đưa nạn nhân đến trạm Y tế tối ưu nhất
@@ -25,7 +28,11 @@ class BaseAgent:
         self.path = [self.start_pos]
         self.is_finished = False
         self.mission_phase = 0
+        self.total_distance = 0
+        self.total_time = 0
 
-    def move_to(self, next_pos):
+    def move_to(self, next_pos, cost=1):
         self.current_pos = next_pos
         self.path.append(next_pos)
+        self.total_distance += 1
+        self.total_time += cost

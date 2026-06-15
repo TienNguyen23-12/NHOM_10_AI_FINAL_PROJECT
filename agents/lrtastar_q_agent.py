@@ -49,6 +49,7 @@ class LRTALearningAgent(BaseAgent):
             # Giai đoạn 1 -> 2: Thả bệnh nhân -> Quay về trạm gốc
             elif phase == 1:
                 self.mission_phase = 2
+                app_instance.logger.add_log(f"[LRTA*] Đã đưa bệnh nhân đến bệnh viện! Tổng quãng đường: {self.total_distance} ô, Thời gian: {self.total_time} phút.")
                 self.goal_pos = self.original_hospital_pos
                 self.path = [self.current_pos]
                 self.h_table.clear()
@@ -109,7 +110,8 @@ class LRTALearningAgent(BaseAgent):
         if best_next:
             old_pos = self.current_pos
             self.h_table[current] = max(self.get_h(current), min_f)
-            self.move_to(best_next)
+            cost = grid_map.get_cost(best_next)
+            self.move_to(best_next, cost)
 
             if app_instance.current_mode == getattr(config, 'MODE_LRTASTAR_Q', 4):
                 reward = -grid_map.get_cost(self.current_pos)
