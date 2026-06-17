@@ -44,7 +44,7 @@ class GridMap:
         """HÀM CHI PHÍ ĐỘNG: Trọng số thay đổi rõ rệt giữa giờ bình thường và giờ cao điểm"""
         r, c = pos
         if self.grid[r][c] == config.STATE_TRAFFIC:
-            return 5  # Kẹt xe giờ cao điểm: Chi phí tăng gấp 5 lần ô trống bình thường
+            return config.COST_TRAFFIC  # Lấy chuẩn số 10 từ config
         if self.grid[r][c] == config.STATE_ACCIDENT:
-            return 20  # Vùng tai nạn cục bộ: Chi phí phạt cực cao để ép thuật toán né đường khác
-        return 1  # Ô trống bình thường: Chi phí tối thiểu là 1
+            return config.COST_ACCIDENT  # Lấy chuẩn số 50 từ config
+        return config.COST_EMPTY  # Lấy chuẩn số 1
