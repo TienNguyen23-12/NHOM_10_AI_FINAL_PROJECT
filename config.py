@@ -48,7 +48,7 @@ LEARNING_RATE = 0.5 # Tốc độ cập nhật kinh nghiệm mới (Nếu thầy
 
 # Chi phí di chuyển (Cost) - Dùng trong hàm tính toán tổng chi phí của A* và LRTA*
 COST_EMPTY = 1
-COST_TRAFFIC = 10    # Càng cao xe càng sợ đường kẹt
+COST_TRAFFIC = 5    # Càng cao xe càng sợ đường kẹt
 COST_ACCIDENT = 50   # Phạt cực nặng khi đâm vào vùng nguy hiểm
 
 # --- 5. ĐỊNH NGHĨA PHẦN THƯỞNG (Q-LEARNING REWARDS) ---
