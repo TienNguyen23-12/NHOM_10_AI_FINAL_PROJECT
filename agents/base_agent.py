@@ -35,4 +35,10 @@ class BaseAgent:
         self.current_pos = next_pos
         self.path.append(next_pos)
         self.total_distance += 1
-        self.total_time += cost
+        # --- LỌC THỜI GIAN LĂN BÁNH ---
+        # Nếu ô tiếp theo là ô Tai nạn (Nơi đón bệnh nhân),
+        # Ta chỉ tính 1 phút di chuyển xe vật lý, không cộng án phạt A* vào đồng hồ.
+        if cost >= 20:
+            self.total_time += 1
+        else:
+            self.total_time += cost
