@@ -58,7 +58,7 @@ class MenuPage(QWidget):
         layout.addSpacing(10)
 
         subtitle = QLabel(
-            "HCMUTE  —  Final AI Project  (A* + Q-Learning / LRTA* + Q-Learning)")
+            "HCM-UTE  - Final AI Project  (A* + Q-Learning / LRTA* + Q-Learning)")
         subtitle.setProperty("subtitle", True)
         subtitle.setFont(QFont("Segoe UI", 9))
         subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -88,7 +88,7 @@ class MenuPage(QWidget):
             0, 40, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding))
 
         # Hint
-        hint = QLabel("F11 — Fullscreen  |  ESC — Thoát")
+        hint = QLabel("F11 - Fullscreen  |  ESC - Thoát")
         hint.setFont(QFont("Segoe UI", 8))
         hint.setStyleSheet("color: #5D6D7E;")
         hint.setAlignment(Qt.AlignmentFlag.AlignCenter)

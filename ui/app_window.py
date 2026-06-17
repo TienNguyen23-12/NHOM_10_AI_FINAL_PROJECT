@@ -20,7 +20,7 @@ class AppWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle(
-            "Multi-Agent Intelligence Rescue Dashboard — HCMUTE")
+            "MULTI-AGENT EMERGENCY DISPATCH SYSTEM - HCM-UTE")
         self.resize(1280, 780)
         self.setMinimumSize(900, 600)
 
