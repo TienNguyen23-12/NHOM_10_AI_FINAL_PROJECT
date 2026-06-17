@@ -47,8 +47,8 @@ _ICON_SRC_PX = 96   # render 1 lần ở 96px, scale mượt theo zoom
 
 _CELL_ICONS = {
     config.STATE_ACCIDENT: ("fa5s.user-injured", "#FFFFFF"),  # Nạn nhân
-    config.STATE_HOSPITAL: ("fa5s.plus",         "#FFFFFF"),  # Chữ thập y tế
     config.STATE_TRAFFIC:  ("fa5s.car-side",     "#FFFFFF"),  # Kẹt xe
+    # STATE_HOSPITAL được vẽ riêng trong _draw_cell (số xe + dấu +)
 }
 # Icon ghost khi hover theo brush đang chọn
 _BRUSH_ICONS = {
@@ -89,6 +89,7 @@ class GridCanvas(QWidget):
 
     cell_clicked       = pyqtSignal(int, int)
     hospital_requested = pyqtSignal(int, int)
+    hover_changed      = pyqtSignal(object)   # (row, col) hoặc None
 
     def __init__(self, controller, parent=None):
         super().__init__(parent)
@@ -190,8 +191,9 @@ class GridCanvas(QWidget):
         for agent in self._ctrl.active_agents:
             self._draw_agent(painter, agent, cs)
 
-        # ── 6. Legend (cố định góc dưới-trái, không theo zoom/pan) ─
+        # ── 6. Rulers + Legend (không theo zoom/pan) ─────────────
         painter.setTransform(QTransform())
+        self._draw_rulers(painter)
         self._draw_legend(painter)
 
         painter.end()
@@ -244,6 +246,54 @@ class GridCanvas(QWidget):
                 Qt.AlignmentFlag.AlignVCenter, label)
             x += fm.horizontalAdvance(label) + gap_g
 
+    # ── Ruler renderer (số cột/dòng bên ngoài grid) ─────────────
+
+    def _draw_rulers(self, painter: QPainter):
+        cs      = config.CELL_SIZE
+        gs      = config.GRID_SIZE
+        cell_px = cs * self._zoom
+
+        if cell_px < 8:   # Quá nhỏ — ẩn ruler
+            return
+
+        font_px = max(7, min(11, int(cell_px * 0.30)))
+        font = QFont("Consolas", -1)
+        font.setPixelSize(font_px)
+        font.setBold(True)
+        painter.setFont(font)
+        fm = painter.fontMetrics()
+        painter.setPen(QColor(70, 95, 130, 200))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+
+        th = fm.height()
+        for c in range(gs):
+            cx = self._pan_x + c * cell_px + cell_px / 2
+            if cx < 0 or cx > self.width():
+                continue
+            label = str(c)
+            tw = fm.horizontalAdvance(label)
+            painter.drawText(
+                QRectF(cx - tw / 2 - 1, 2, tw + 2, th),
+                Qt.AlignmentFlag.AlignCenter, label)
+
+        for r in range(gs):
+            ry = self._pan_y + r * cell_px + cell_px / 2
+            if ry < 0 or ry > self.height():
+                continue
+            label = str(r)
+            tw = fm.horizontalAdvance(label)
+            painter.drawText(
+                QRectF(2, ry - th / 2, tw + 2, th),
+                Qt.AlignmentFlag.AlignVCenter, label)
+
+    # ── Hospital car count helper ─────────────────────────────────
+
+    def _get_hospital_cars(self, r: int, c: int):
+        for k, v in config.HOSPITAL_CONFIG.items():
+            if tuple(v["pos"]) == (r, c):
+                return self._ctrl.dispatcher.current_cars.get(k)
+        return None
+
     # ── Cell renderer ─────────────────────────────────────────────
 
     def _draw_cell(self, painter: QPainter,
@@ -285,6 +335,28 @@ class GridCanvas(QWidget):
             # Icon / hoa văn theo loại ô
             if state == config.STATE_WALL:
                 self._draw_brick_pattern(painter, rect, radius)
+            elif state == config.STATE_HOSPITAL:
+                # Số xe lớn ở giữa-dưới ô (thay thế dấu +)
+                painter.save()
+                cars = self._get_hospital_cars(r, c)
+                label = str(cars) if cars is not None else "?"
+                f = QFont("Segoe UI", -1, QFont.Weight.Bold)
+                f.setPixelSize(max(5, int(w * 0.50)))
+                painter.setFont(f)
+                painter.setPen(QColor(255, 255, 255))
+                painter.drawText(
+                    QRectF(x, y + w * 0.22, w, w * 0.78),
+                    Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter,
+                    label)
+                painter.restore()
+                # Dấu + nhỏ ở góc trên-trái biểu thị bệnh viện
+                pm_plus = _pix("fa5s.plus", "#FFFFFF")
+                icon_s = max(4.0, w * 0.30)
+                painter.setOpacity(0.90)
+                painter.drawPixmap(
+                    QRectF(x + w * 0.06, y + w * 0.05, icon_s, icon_s),
+                    pm_plus, QRectF(pm_plus.rect()))
+                painter.setOpacity(1.0)
             else:
                 icon_def = _CELL_ICONS.get(state)
                 if icon_def:
@@ -411,6 +483,7 @@ class GridCanvas(QWidget):
             new_hover = (row, col) if row is not None else None
             if new_hover != self._hover_cell:
                 self._hover_cell = new_hover
+                self.hover_changed.emit(new_hover)
                 self.update()
 
     def mouseReleaseEvent(self, event):
@@ -420,6 +493,7 @@ class GridCanvas(QWidget):
 
     def leaveEvent(self, event):
         self._hover_cell = None
+        self.hover_changed.emit(None)
         self.update()
 
     def wheelEvent(self, event):

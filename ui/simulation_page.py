@@ -71,7 +71,24 @@ class SimulationPage(QWidget):
 
         self._canvas = GridCanvas(self._ctrl)
         self._canvas.setMinimumWidth(300)
-        main_split.addWidget(self._canvas)
+
+        # Wrap canvas + hover label
+        canvas_wrap = QWidget()
+        canvas_wrap.setMinimumWidth(300)
+        cw_layout = QVBoxLayout(canvas_wrap)
+        cw_layout.setContentsMargins(0, 0, 0, 0)
+        cw_layout.setSpacing(0)
+        cw_layout.addWidget(self._canvas, stretch=1)
+
+        self._hover_label = QLabel("  Ô: —")
+        self._hover_label.setFixedHeight(20)
+        self._hover_label.setFont(QFont("Consolas", 8))
+        self._hover_label.setStyleSheet(
+            "color: #4A6080; background: #EBF0F5; "
+            "border-top: 1px solid #C8D4E0; padding-left: 6px;")
+        cw_layout.addWidget(self._hover_label)
+
+        main_split.addWidget(canvas_wrap)
 
         # ── right_widget: controls (cố định) + inspector (flex) ───
         right_widget = QWidget()
@@ -143,6 +160,7 @@ class SimulationPage(QWidget):
 
         self._canvas.cell_clicked.connect(self._on_cell_clicked)
         self._canvas.hospital_requested.connect(self._on_hospital_requested)
+        self._canvas.hover_changed.connect(self._on_hover_changed)
 
         cp = self._controls
         cp.brush_changed.connect(self._on_brush_changed)
@@ -154,6 +172,7 @@ class SimulationPage(QWidget):
         cp.view_qtable.connect(self._on_view_qtable)
         cp.view_htable.connect(self._on_view_htable)
         cp.view_routes.connect(self._on_view_routes)
+        cp.view_history.connect(self._on_view_history)
         cp.save_model.connect(ctrl.save_q_brain)
         cp.load_model.connect(ctrl.load_q_brain)
         cp.save_map.connect(ctrl.save_map)
@@ -184,6 +203,7 @@ class SimulationPage(QWidget):
         sc("Q",       self._on_view_qtable)
         sc("H",       self._on_view_htable)
         sc("Ctrl+R",  self._on_view_routes)
+        sc("Ctrl+T",  self._on_view_history)
 
         sc("Ctrl+S",       self._ctrl.save_map)
         sc("Ctrl+O",       self._ctrl.load_map)
@@ -268,6 +288,25 @@ class SimulationPage(QWidget):
 
     def _on_view_routes(self):
         self._inspector.load_lines(self._ctrl.build_paths_lines())
+
+    def _on_view_history(self):
+        self._inspector.load_lines(self._ctrl.build_completed_trips_lines())
+
+    def _on_hover_changed(self, pos):
+        if pos is None:
+            self._hover_label.setText("  Ô: —")
+            return
+        r, c = pos
+        state_names = {
+            config.STATE_EMPTY:    "Đường trống",
+            config.STATE_WALL:     "Tường",
+            config.STATE_TRAFFIC:  "Kẹt xe",
+            config.STATE_ACCIDENT: "Tai nạn",
+            config.STATE_HOSPITAL: "Bệnh viện",
+        }
+        state = self._ctrl.env.grid[r][c]
+        name  = state_names.get(state, "?")
+        self._hover_label.setText(f"  Ô [{r}, {c}]   {name}")
 
     # ------------------------------------------------------------------ #
     #  Lifecycle                                                           #

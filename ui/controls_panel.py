@@ -111,6 +111,7 @@ class ControlsPanel(QWidget):
     view_qtable        = pyqtSignal()
     view_htable        = pyqtSignal()
     view_routes        = pyqtSignal()
+    view_history       = pyqtSignal()
     save_model         = pyqtSignal()
     load_model         = pyqtSignal()
     save_map           = pyqtSignal()
@@ -256,14 +257,17 @@ class ControlsPanel(QWidget):
         # ── AI Monitor sub-section ──────────────────────────────
         v.addWidget(_col_header("AI MONITOR", "fa5s.search"))
 
-        # Dòng 1: Q-Table | H-Table | Routes
-        btn_q  = _btn("Q-Table", "fa5s.table",     "Xem Q-table [Q]")
-        btn_h  = _btn("H-Table", "fa5s.chart-bar", "Xem H-table [H]")
-        btn_rt = _btn("Routes",  "fa5s.map-signs",  "Xem routes [Ctrl+R]")
+        # Dòng 1: Q-Table | H-Table | Routes | Trip Log
+        btn_q  = _btn("Q-Table",  "fa5s.table",     "Xem Q-table [Q]")
+        btn_h  = _btn("H-Table",  "fa5s.chart-bar", "Xem H-table [H]")
+        btn_rt = _btn("Routes",   "fa5s.map-signs",  "Xem routes [Ctrl+R]")
+        btn_hs = _btn("Trip Log", "fa5s.history",    "Xem lịch sử chuyến đi [Ctrl+T]")
         btn_q.clicked.connect(self.view_qtable)
         btn_h.clicked.connect(self.view_htable)
         btn_rt.clicked.connect(self.view_routes)
-        v.addWidget(_grid_row(btn_q, btn_h, btn_rt))
+        btn_hs.clicked.connect(self.view_history)
+        v.addWidget(_grid_row(btn_q, btn_h))
+        v.addWidget(_grid_row(btn_rt, btn_hs))
 
         # Dòng 2: Save Model | Load Model
         btn_sm = _btn("Save AI", "fa5s.save",  "Lưu Q-brain [Ctrl+Shift+S]")

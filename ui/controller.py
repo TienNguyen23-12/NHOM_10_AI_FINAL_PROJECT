@@ -39,6 +39,7 @@ class SimulationController(QObject):
 
         self.active_agents: list = []
         self.pending_accidents: list = []
+        self.completed_trips: list = []
 
         self.is_paused = False
         self.current_mode = getattr(config, 'MODE_ASTAR_Q', 3)
@@ -176,6 +177,19 @@ class SimulationController(QObject):
                             reward = getattr(config, 'REWARD_GOAL', 100)
                         self.global_q_brain.update_q_value(old_pos, action_idx, reward, agent.current_pos)
 
+        for agent in self.active_agents:
+            if agent.is_finished:
+                kind = "A*" if isinstance(agent, AStarQAgent) else "LRTA*"
+                self.completed_trips.append({
+                    'num':   len(self.completed_trips) + 1,
+                    'kind':  kind,
+                    'start': agent.start_pos,
+                    'goal':  agent.goal_pos,
+                    'steps': len(agent.full_path),
+                    'cost':  round(agent.total_time, 1),
+                    'path':  list(agent.full_path),
+                })
+
         self.active_agents = [a for a in self.active_agents if not a.is_finished]
         self.fleet_updated.emit()
 
@@ -212,6 +226,7 @@ class SimulationController(QObject):
         self.active_agents.clear()
         self.env.accidents_pool.clear()
         self.pending_accidents.clear()
+        self.completed_trips.clear()
         config.HOSPITAL_CONFIG.clear()
         self.dispatcher.reset_resources()
         self.env.grid = [[config.STATE_EMPTY] * config.GRID_SIZE for _ in range(config.GRID_SIZE)]
@@ -457,6 +472,26 @@ class SimulationController(QObject):
             lines.append(f"Car #{idx + 1} [{kind}]:")
             lines.append(f"  {car.start_pos} -> {car.goal_pos}")
             lines.append(f"  Traversed: {len(car.path)} blocks.")
+        return lines
+
+    def build_completed_trips_lines(self) -> list[str]:
+        lines = ["--- TRIP HISTORY LOG ---"]
+        if not self.completed_trips:
+            lines.append("Chưa có chuyến xe nào hoàn thành.")
+            return lines
+        for t in reversed(self.completed_trips):
+            lines.append(
+                f"━━━ Chuyến #{t['num']}  [{t['kind']}]  "
+                f"{t['steps']} bước  |  cost={t['cost']}")
+            lines.append(f"    Xuất phát: {t['start']}   Đích: {t['goal']}")
+            lines.append("    Lộ trình:")
+            path = t['path']
+            # Hiển thị từng ô, mỗi dòng tối đa 5 ô để dễ đọc
+            for i in range(0, len(path), 5):
+                chunk = path[i:i + 5]
+                prefix = f"    [{i:>3}]  "
+                cells  = "  →  ".join(f"({r},{c})" for r, c in chunk)
+                lines.append(prefix + cells)
         return lines
 
     # --- ĐÃ FIX CĂN CƠ LỖI NHÀ MÁY ĐẺ XE ---
