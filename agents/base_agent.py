@@ -12,6 +12,7 @@ class BaseAgent:
         self.color = color  # (R, G, B) tuple — GridCanvas dùng QColor(*color)
         self.current_pos = start_pos
         self.path = [start_pos]
+        self.full_path = [start_pos]   # Tích lũy toàn bộ hành trình, không bị reset theo phase
         self.is_finished = False
 
         self.total_distance = 0
@@ -34,6 +35,7 @@ class BaseAgent:
     def move_to(self, next_pos, cost=1):
         self.current_pos = next_pos
         self.path.append(next_pos)
+        self.full_path.append(next_pos)
         self.total_distance += 1
         # --- LỌC THỜI GIAN LĂN BÁNH ---
         # Nếu ô tiếp theo là ô Tai nạn (Nơi đón bệnh nhân),
