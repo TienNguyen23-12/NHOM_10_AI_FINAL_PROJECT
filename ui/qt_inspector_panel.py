@@ -1,10 +1,10 @@
 # ui/qt_inspector_panel.py
 # AI Monitor panel — QListWidget hiển thị Q-table / H-table / routes.
-# Hover trên dòng → emit highlight_cells_changed để GridCanvas tô sáng ô.
+# Style từ global theme (light surface).
 
 from PyQt6.QtWidgets import QListWidget, QListWidgetItem, QSizePolicy
 from PyQt6.QtGui     import QColor, QFont
-from PyQt6.QtCore    import Qt, pyqtSignal
+from PyQt6.QtCore    import Qt
 
 
 _HEADER_COLOR = QColor(44, 62, 80)
@@ -13,11 +13,7 @@ _INDENT_COLOR = QColor(127, 140, 141)
 
 
 class QtInspectorPanel(QListWidget):
-    """Hiển thị Q-table / H-table / routes.
-    Hover trên dòng phát highlight_cells_changed(cells) để GridCanvas tô sáng.
-    """
-
-    highlight_cells_changed = pyqtSignal(list)
+    """Hiển thị Q-table / H-table / routes với font mono cho data alignment."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -25,14 +21,10 @@ class QtInspectorPanel(QListWidget):
         self.setFont(QFont("Consolas", 8))
         self.setSelectionMode(QListWidget.SelectionMode.NoSelection)
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        self.setMouseTracking(True)
-        self._highlight_data: list[list] = []
-        self._hovered_row: int = -1   # row index đang hover (-1 = không có)
         self._show_welcome()
 
     def _show_welcome(self):
         self.clear()
-        self._highlight_data = []
         for line in [
             "Click any inspection button",
             "above to stream live AI metrics.",
@@ -42,35 +34,18 @@ class QtInspectorPanel(QListWidget):
             "  H  — H-Table",
             "  Ctrl+R — Routes",
         ]:
-            self._add_item(line, [], is_header=line.endswith(":"))
-
-    # ── Public API ────────────────────────────────────────────────
-
-    def load_items(self, items: list[tuple[str, list]]):
-        """Load list of (text, cells) pairs. cells is list of (row,col) tuples."""
-        self.clear()
-        self._highlight_data = []
-        for text, cells in items:
-            is_header = (text.startswith("---") or
-                         text.startswith("[Agent") or
-                         text.startswith("Car #") or
-                         text.startswith("━━━"))
-            self._add_item(text, cells, is_header)
-        # Giữ highlight nếu chuột vẫn đang hover trên cùng row index
-        if 0 <= self._hovered_row < len(self._highlight_data):
-            self.highlight_cells_changed.emit(self._highlight_data[self._hovered_row])
-        else:
-            self.highlight_cells_changed.emit([])
+            self._add_line(line, is_header=line.endswith(":"))
 
     def load_lines(self, lines: list[str]):
-        """Backwards-compat wrapper — no highlight data."""
-        self.load_items([(line, []) for line in lines])
+        self.clear()
+        for line in lines:
+            is_header = (line.startswith("---") or
+                         line.startswith("[Agent") or
+                         line.startswith("Car #"))
+            self._add_line(line, is_header)
 
-    # ── Internal helpers ──────────────────────────────────────────
-
-    def _add_item(self, text: str, cells: list, is_header: bool):
+    def _add_line(self, text: str, is_header: bool):
         item = QListWidgetItem(text)
-        item.setData(Qt.ItemDataRole.UserRole, cells)
         if is_header:
             item.setForeground(_HEADER_COLOR)
             f = self.font()
@@ -81,22 +56,3 @@ class QtInspectorPanel(QListWidget):
         else:
             item.setForeground(_NORMAL_COLOR)
         self.addItem(item)
-        self._highlight_data.append(cells)
-
-    # ── Mouse events ──────────────────────────────────────────────
-
-    def mouseMoveEvent(self, event):
-        item = self.itemAt(event.pos())
-        if item is not None:
-            self._hovered_row = self.row(item)
-            cells = item.data(Qt.ItemDataRole.UserRole) or []
-            self.highlight_cells_changed.emit(cells)
-        else:
-            self._hovered_row = -1
-            self.highlight_cells_changed.emit([])
-        super().mouseMoveEvent(event)
-
-    def leaveEvent(self, event):
-        self._hovered_row = -1
-        self.highlight_cells_changed.emit([])
-        super().leaveEvent(event)

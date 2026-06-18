@@ -459,78 +459,54 @@ class SimulationController(QObject):
             parts.append(f"{label}: {v} units")
         return "   |   ".join(parts)
 
-    def build_q_table_items(self) -> list[tuple[str, list]]:
-        items: list[tuple[str, list]] = [("--- LIVE BACKEND Q-TABLE METRICS ---", [])]
-        if not self.global_q_brain.q_table:
-            items.append(("No learned Q-weights in memory yet.", []))
-            return items
-        for state, values in self.global_q_brain.q_table.items():
-            items.append((
-                f"Cell {state} -> Q:{[round(v, 2) for v in values]}",
-                [state],
-            ))
-        return items
-
     def build_q_table_lines(self) -> list[str]:
-        return [text for text, _ in self.build_q_table_items()]
-
-    def build_h_table_items(self) -> list[tuple[str, list]]:
-        items: list[tuple[str, list]] = [("--- LIVE LRTA* HEURISTIC FIELDS ---", [])]
-        if not self.global_h_table:
-            items.append(("No heuristic data has been learned yet.", []))
-            return items
-        for state, h_val in sorted(self.global_h_table.items()):
-            items.append((
-                f"  Node {state} -> H: {round(h_val, 1)}",
-                [state],
-            ))
-        return items
+        lines = ["--- LIVE BACKEND Q-TABLE METRICS ---"]
+        if not self.global_q_brain.q_table:
+            lines.append("No learned Q-weights in memory yet.")
+            return lines
+        for state, values in self.global_q_brain.q_table.items():
+            lines.append(f"Cell {state} -> Q:{[round(v, 2) for v in values]}")
+        return lines
 
     def build_h_table_lines(self) -> list[str]:
-        return [text for text, _ in self.build_h_table_items()]
-
-    def build_paths_items(self) -> list[tuple[str, list]]:
-        items: list[tuple[str, list]] = [("--- ACTIVE MISSION PATH ROUTING ---", [])]
-        if not self.active_agents:
-            items.append(("Fleet is currently stationed at depots.", []))
-            return items
-        for idx, car in enumerate(self.active_agents):
-            kind = "A*" if isinstance(car, AStarQAgent) else "LRTA*"
-            car_path = list(car.path)
-            planned  = getattr(car, 'calculated_path', None) or []
-            all_cells = list(dict.fromkeys(car_path + planned))  # dedupe, preserve order
-            items.append((f"Car #{idx + 1} [{kind}]:", all_cells))
-            items.append((f"  {car.start_pos} -> {car.goal_pos}", all_cells))
-            items.append((f"  Traversed: {len(car.path)} blocks.", all_cells))
-        return items
+        lines = ["--- LIVE LRTA* HEURISTIC FIELDS ---"]
+        if not self.global_h_table:
+            lines.append("No heuristic data has been learned yet.")
+            return lines
+        for state, h_val in sorted(self.global_h_table.items()):
+            lines.append(f"  Node {state} -> H: {round(h_val, 1)}")
+        return lines
 
     def build_paths_lines(self) -> list[str]:
-        return [text for text, _ in self.build_paths_items()]
+        lines = ["--- ACTIVE MISSION PATH ROUTING ---"]
+        if not self.active_agents:
+            lines.append("Fleet is currently stationed at depots.")
+            return lines
+        for idx, car in enumerate(self.active_agents):
+            kind = "A*" if isinstance(car, AStarQAgent) else "LRTA*"
+            lines.append(f"Car #{idx + 1} [{kind}]:")
+            lines.append(f"  {car.start_pos} -> {car.goal_pos}")
+            lines.append(f"  Traversed: {len(car.path)} blocks.")
+        return lines
 
-    def build_completed_trips_items(self) -> list[tuple[str, list]]:
-        items: list[tuple[str, list]] = [("--- TRIP HISTORY LOG ---", [])]
+    def build_completed_trips_lines(self) -> list[str]:
+        lines = ["--- TRIP HISTORY LOG ---"]
         if not self.completed_trips:
-            items.append(("Chưa có chuyến xe nào hoàn thành.", []))
-            return items
+            lines.append("Chưa có chuyến xe nào hoàn thành.")
+            return lines
         for t in reversed(self.completed_trips):
-            path = t['path']
-            start, goal = t['start'], t['goal']
-            items.append((
+            lines.append(
                 f"━━━ Chuyến #{t['num']}  [{t['kind']}]  "
-                f"{t['steps']} bước  |  cost={t['cost']}",
-                [],
-            ))
-            items.append((f"    Xuất phát: {start}   Đích: {goal}", [start, goal]))
-            items.append(("    Lộ trình:", []))
+                f"{t['steps']} bước  |  cost={t['cost']}")
+            lines.append(f"    Xuất phát: {t['start']}   Đích: {t['goal']}")
+            lines.append("    Lộ trình:")
+            path = t['path']
             for i in range(0, len(path), 5):
                 chunk = path[i:i + 5]
                 prefix = f"    [{i:>3}]  "
-                cells_str = "  →  ".join(f"({r},{c})" for r, c in chunk)
-                items.append((prefix + cells_str, chunk))
-        return items
-
-    def build_completed_trips_lines(self) -> list[str]:
-        return [text for text, _ in self.build_completed_trips_items()]
+                cells  = "  →  ".join(f"({r},{c})" for r, c in chunk)
+                lines.append(prefix + cells)
+        return lines
 
     # --- ĐÃ FIX CĂN CƠ LỖI NHÀ MÁY ĐẺ XE ---
     def _create_agent(self, start, goal):
