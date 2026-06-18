@@ -161,7 +161,10 @@ class SimulationPage(QWidget):
 
         self._canvas.cell_clicked.connect(self._on_cell_clicked)
         self._canvas.hospital_requested.connect(self._on_hospital_requested)
+        self._canvas.hospital_edit_requested.connect(self._on_hospital_edit_requested)
         self._canvas.hover_changed.connect(self._on_hover_changed)
+        self._inspector.highlight_cells_changed.connect(
+            self._canvas.set_inspector_highlight)
 
         cp = self._controls
         cp.brush_changed.connect(self._on_brush_changed)
@@ -260,6 +263,19 @@ class SimulationPage(QWidget):
         if dlg.exec():
             self._ctrl.place_hospital(row, col, dlg.car_count)
 
+    def _on_hospital_edit_requested(self, row: int, col: int):
+        key = next(
+            (k for k, v in config.HOSPITAL_CONFIG.items()
+             if tuple(v["pos"]) == (row, col)),
+            None,
+        )
+        if key is None:
+            return
+        current = self._ctrl.dispatcher.current_cars.get(key, 1)
+        dlg = HospitalDialog(self, initial_value=current, edit_mode=True)
+        if dlg.exec():
+            self._ctrl.edit_hospital_cars(row, col, dlg.car_count)
+
     def _on_brush_changed(self, mode: str):
         self._ctrl.set_brush(mode)
 
@@ -284,13 +300,13 @@ class SimulationPage(QWidget):
     def _auto_refresh_inspector(self):
         view = getattr(self, '_current_inspector_view', None)
         if view == 'Q':
-            self._inspector.load_lines(self._ctrl.build_q_table_lines())
+            self._inspector.load_items(self._ctrl.build_q_table_items())
         elif view == 'H':
-            self._inspector.load_lines(self._ctrl.build_h_table_lines())
+            self._inspector.load_items(self._ctrl.build_h_table_items())
         elif view == 'R':
-            self._inspector.load_lines(self._ctrl.build_paths_lines())
+            self._inspector.load_items(self._ctrl.build_paths_items())
         elif view == 'T':
-            self._inspector.load_lines(self._ctrl.build_completed_trips_lines())
+            self._inspector.load_items(self._ctrl.build_completed_trips_items())
 
     def _on_view_qtable(self):
         self._current_inspector_view = 'Q'
