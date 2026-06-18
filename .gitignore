@@ -4,6 +4,6 @@ __pycache__/
 venv/
 env/
 .env
-.assets/
-docs/
-
+*.mp4
+*.docx
+*.md
