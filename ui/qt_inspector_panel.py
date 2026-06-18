@@ -47,6 +47,7 @@ class QtInspectorPanel(QListWidget):
 
     def load_items(self, items: list[tuple[str, list]]):
         """Load list of (text, cells) pairs. cells is list of (row,col) tuples."""
+        self.highlight_cells_changed.emit([])
         self.clear()
         self._highlight_data = []
         for text, cells in items:
