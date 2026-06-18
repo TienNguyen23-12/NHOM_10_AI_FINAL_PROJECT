@@ -157,7 +157,7 @@ class SimulationPage(QWidget):
         ctrl.log_added.connect(self._logger_widget.add_log)
         ctrl.fleet_updated.connect(self._update_status)
         ctrl.status_changed.connect(self._update_status)
-        ctrl.grid_updated.connect(self._auto_refresh_inspector)
+        ctrl.fleet_updated.connect(self._auto_refresh_inspector)
 
         self._canvas.cell_clicked.connect(self._on_cell_clicked)
         self._canvas.hospital_requested.connect(self._on_hospital_requested)

@@ -514,18 +514,19 @@ class SimulationController(QObject):
             return items
         for t in reversed(self.completed_trips):
             path = t['path']
+            start, goal = t['start'], t['goal']
             items.append((
                 f"━━━ Chuyến #{t['num']}  [{t['kind']}]  "
                 f"{t['steps']} bước  |  cost={t['cost']}",
-                path,
+                [],
             ))
-            items.append((f"    Xuất phát: {t['start']}   Đích: {t['goal']}", path))
-            items.append(("    Lộ trình:", path))
+            items.append((f"    Xuất phát: {start}   Đích: {goal}", [start, goal]))
+            items.append(("    Lộ trình:", []))
             for i in range(0, len(path), 5):
                 chunk = path[i:i + 5]
                 prefix = f"    [{i:>3}]  "
                 cells_str = "  →  ".join(f"({r},{c})" for r, c in chunk)
-                items.append((prefix + cells_str, path))
+                items.append((prefix + cells_str, chunk))
         return items
 
     def build_completed_trips_lines(self) -> list[str]:
