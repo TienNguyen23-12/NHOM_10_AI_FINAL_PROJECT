@@ -40,6 +40,7 @@ class SimulationController(QObject):
         self.active_agents: list = []
         self.pending_accidents: list = []
         self.completed_trips: list = []
+        self.global_h_table: dict = {}
 
         self.is_paused = False
         self.current_mode = getattr(config, 'MODE_ASTAR_Q', 3)
@@ -452,14 +453,11 @@ class SimulationController(QObject):
 
     def build_h_table_lines(self) -> list[str]:
         lines = ["--- LIVE LRTA* HEURISTIC FIELDS ---"]
-        lrta_agents = [a for a in self.active_agents if hasattr(a, 'h_table')]
-        if not lrta_agents:
-            lines.append("No active LRTA* agents on map.")
+        if not self.global_h_table:
+            lines.append("No heuristic data has been learned yet.")
             return lines
-        for idx, car in enumerate(lrta_agents):
-            lines.append(f"[Agent #{idx + 1}] Memory states:")
-            for state, h_val in car.h_table.items():
-                lines.append(f"  Node {state} -> H: {round(h_val, 1)}")
+        for state, h_val in sorted(self.global_h_table.items()):
+            lines.append(f"  Node {state} -> H: {round(h_val, 1)}")
         return lines
 
     def build_paths_lines(self) -> list[str]:

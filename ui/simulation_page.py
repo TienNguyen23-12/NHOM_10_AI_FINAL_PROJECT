@@ -157,6 +157,7 @@ class SimulationPage(QWidget):
         ctrl.log_added.connect(self._logger_widget.add_log)
         ctrl.fleet_updated.connect(self._update_status)
         ctrl.status_changed.connect(self._update_status)
+        ctrl.grid_updated.connect(self._auto_refresh_inspector)
 
         self._canvas.cell_clicked.connect(self._on_cell_clicked)
         self._canvas.hospital_requested.connect(self._on_hospital_requested)
@@ -280,17 +281,32 @@ class SimulationPage(QWidget):
     def _on_visualizer(self):
         self._controls.set_visualizer(self._ctrl.toggle_visualizer())
 
+    def _auto_refresh_inspector(self):
+        view = getattr(self, '_current_inspector_view', None)
+        if view == 'Q':
+            self._inspector.load_lines(self._ctrl.build_q_table_lines())
+        elif view == 'H':
+            self._inspector.load_lines(self._ctrl.build_h_table_lines())
+        elif view == 'R':
+            self._inspector.load_lines(self._ctrl.build_paths_lines())
+        elif view == 'T':
+            self._inspector.load_lines(self._ctrl.build_completed_trips_lines())
+
     def _on_view_qtable(self):
-        self._inspector.load_lines(self._ctrl.build_q_table_lines())
+        self._current_inspector_view = 'Q'
+        self._auto_refresh_inspector()
 
     def _on_view_htable(self):
-        self._inspector.load_lines(self._ctrl.build_h_table_lines())
+        self._current_inspector_view = 'H'
+        self._auto_refresh_inspector()
 
     def _on_view_routes(self):
-        self._inspector.load_lines(self._ctrl.build_paths_lines())
+        self._current_inspector_view = 'R'
+        self._auto_refresh_inspector()
 
     def _on_view_history(self):
-        self._inspector.load_lines(self._ctrl.build_completed_trips_lines())
+        self._current_inspector_view = 'T'
+        self._auto_refresh_inspector()
 
     def _on_hover_changed(self, pos):
         if pos is None:

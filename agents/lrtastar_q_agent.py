@@ -109,7 +109,10 @@ class LRTALearningAgent(BaseAgent):
 
         if best_next:
             old_pos = self.current_pos
-            self.h_table[current] = max(self.get_h(current), min_f)
+            new_h = max(self.get_h(current), min_f)
+            self.h_table[current] = new_h
+            if hasattr(app_instance, 'global_h_table'):
+                app_instance.global_h_table[current] = new_h
             cost = grid_map.get_cost(best_next)
             self.move_to(best_next, cost)
 
