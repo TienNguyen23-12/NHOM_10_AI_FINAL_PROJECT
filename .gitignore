@@ -7,3 +7,5 @@ env/
 *.mp4
 *.docx
 *.md
+.assets/*
+docs/
