@@ -161,6 +161,7 @@ class SimulationPage(QWidget):
 
         self._canvas.cell_clicked.connect(self._on_cell_clicked)
         self._canvas.hospital_requested.connect(self._on_hospital_requested)
+        self._canvas.hospital_edit_requested.connect(self._on_hospital_edit_requested)
         self._canvas.hover_changed.connect(self._on_hover_changed)
 
         cp = self._controls
@@ -259,6 +260,19 @@ class SimulationPage(QWidget):
         dlg = HospitalDialog(self)
         if dlg.exec():
             self._ctrl.place_hospital(row, col, dlg.car_count)
+
+    def _on_hospital_edit_requested(self, row: int, col: int):
+        key = next(
+            (k for k, v in config.HOSPITAL_CONFIG.items()
+             if tuple(v["pos"]) == (row, col)),
+            None,
+        )
+        if key is None:
+            return
+        current = self._ctrl.dispatcher.current_cars.get(key, 1)
+        dlg = HospitalDialog(self, initial_value=current, edit_mode=True)
+        if dlg.exec():
+            self._ctrl.edit_hospital_cars(row, col, dlg.car_count)
 
     def _on_brush_changed(self, mode: str):
         self._ctrl.set_brush(mode)

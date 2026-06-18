@@ -18,7 +18,6 @@ class QtInspectorPanel(QListWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        # Font mono để data dễ đọc
         self.setFont(QFont("Consolas", 8))
         self.setSelectionMode(QListWidget.SelectionMode.NoSelection)
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)

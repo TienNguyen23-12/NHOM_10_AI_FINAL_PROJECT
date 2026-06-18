@@ -15,9 +15,9 @@ from PyQt6.QtGui  import QFont, QColor
 class HospitalDialog(QDialog):
     """Modal dialog nhập số xe ban đầu cho bệnh viện."""
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, initial_value: int = 3, edit_mode: bool = False):
         super().__init__(parent)
-        self.setWindowTitle("Setup Hospital")
+        self.setWindowTitle("Edit Hospital" if edit_mode else "Setup Hospital")
         self.setFixedSize(380, 310)
         self.setWindowFlags(
             Qt.WindowType.Dialog |
@@ -53,7 +53,8 @@ class HospitalDialog(QDialog):
         )
         icon_lbl.setStyleSheet("background: transparent;")
 
-        title_lbl = QLabel("SETUP HOSPITAL")
+        title_text = "EDIT HOSPITAL" if edit_mode else "SETUP HOSPITAL"
+        title_lbl = QLabel(title_text)
         title_lbl.setFont(QFont("Segoe UI", 13, QFont.Weight.Bold))
         title_lbl.setStyleSheet("color: #FFFFFF; background: transparent; letter-spacing: 1px;")
 
@@ -62,7 +63,8 @@ class HospitalDialog(QDialog):
         icon_row.addStretch()
         h_layout.addLayout(icon_row)
 
-        sub_lbl = QLabel("Configure initial ambulance fleet for this station")
+        sub_text = "Adjust ambulance fleet size for this station" if edit_mode else "Configure initial ambulance fleet for this station"
+        sub_lbl = QLabel(sub_text)
         sub_lbl.setFont(QFont("Segoe UI", 8))
         sub_lbl.setStyleSheet("color: #8FA8C8; background: transparent;")
         h_layout.addWidget(sub_lbl)
@@ -78,14 +80,12 @@ class HospitalDialog(QDialog):
         body_layout.setContentsMargins(28, 24, 28, 20)
         body_layout.setSpacing(16)
 
-        # Prompt label
         prompt = QLabel("How many ambulances for this station?")
         prompt.setFont(QFont("Segoe UI", 9))
         prompt.setStyleSheet("color: #2C3E50; background: transparent;")
         prompt.setAlignment(Qt.AlignmentFlag.AlignCenter)
         body_layout.addWidget(prompt)
 
-        # ── Spinner row: [−] [value] [+] ─────────────────────────────
         spin_row = QHBoxLayout()
         spin_row.setSpacing(12)
 
@@ -99,7 +99,7 @@ class HospitalDialog(QDialog):
 
         self.spin = QSpinBox()
         self.spin.setRange(1, 9)
-        self.spin.setValue(3)
+        self.spin.setValue(initial_value)
         self.spin.setFixedSize(100, 52)
         self.spin.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.spin.setFont(QFont("Segoe UI", 20, QFont.Weight.Bold))
@@ -133,20 +133,17 @@ class HospitalDialog(QDialog):
         spin_row.addStretch()
         body_layout.addLayout(spin_row)
 
-        # Range hint
         range_lbl = QLabel("Range: 1 – 9 vehicles")
         range_lbl.setFont(QFont("Segoe UI", 7))
         range_lbl.setStyleSheet("color: #AEB6BF; background: transparent;")
         range_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         body_layout.addWidget(range_lbl)
 
-        # ── Divider ───────────────────────────────────────────────────
         divider = QFrame()
         divider.setFrameShape(QFrame.Shape.HLine)
         divider.setStyleSheet("color: #EAECEE; background: #EAECEE; max-height: 1px;")
         body_layout.addWidget(divider)
 
-        # ── Action buttons row ────────────────────────────────────────
         btn_row = QHBoxLayout()
         btn_row.setSpacing(10)
 
@@ -157,7 +154,8 @@ class HospitalDialog(QDialog):
         self.btn_cancel.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_cancel.setStyleSheet(self._action_style("#6C7A89", "#566573"))
 
-        self.btn_confirm = QPushButton("  Confirm")
+        confirm_text = "  Update" if edit_mode else "  Confirm"
+        self.btn_confirm = QPushButton(confirm_text)
         self.btn_confirm.setIcon(qta.icon("fa5s.check", color="#FFFFFF"))
         self.btn_confirm.setIconSize(QSize(13, 13))
         self.btn_confirm.setFixedHeight(40)
@@ -170,7 +168,6 @@ class HospitalDialog(QDialog):
 
         root.addWidget(body)
 
-        # ── Connections ───────────────────────────────────────────────
         self.btn_minus.clicked.connect(self._decrement)
         self.btn_plus.clicked.connect(self._increment)
         self.btn_confirm.clicked.connect(self.accept)

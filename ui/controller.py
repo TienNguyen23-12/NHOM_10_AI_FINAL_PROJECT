@@ -276,6 +276,23 @@ class SimulationController(QObject):
         self.logger.add_log(f"[STATION] Setup depot {name} with: {car_count} units.")
         self.fleet_updated.emit()
 
+    def edit_hospital_cars(self, row: int, col: int, new_count: int):
+        key = next(
+            (k for k, v in config.HOSPITAL_CONFIG.items() if tuple(v["pos"]) == (row, col)),
+            None,
+        )
+        if key is None:
+            return
+        config.HOSPITAL_CONFIG[key]["max_cars"] = new_count
+        self.dispatcher.current_cars[key] = min(
+            new_count, self.dispatcher.current_cars.get(key, new_count)
+        )
+        self.logger.add_log(
+            f"[STATION] Updated {key}: fleet size → {new_count} units "
+            f"(available now: {self.dispatcher.current_cars[key]})."
+        )
+        self.fleet_updated.emit()
+
     def set_mode(self, mode: int):
         self.current_mode = mode
         labels = {
@@ -484,7 +501,6 @@ class SimulationController(QObject):
             lines.append(f"    Xuất phát: {t['start']}   Đích: {t['goal']}")
             lines.append("    Lộ trình:")
             path = t['path']
-            # Hiển thị từng ô, mỗi dòng tối đa 5 ô để dễ đọc
             for i in range(0, len(path), 5):
                 chunk = path[i:i + 5]
                 prefix = f"    [{i:>3}]  "
