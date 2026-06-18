@@ -204,7 +204,7 @@ class GridCanvas(QWidget):
         (QColor(231, 76,  60), "fa5s.user-injured", "Tai nạn"),
         (QColor(22, 160, 133), "fa5s.plus",         "Bệnh viện"),
         (QColor(230, 126, 34), "fa5s.car-side",     "Kẹt xe"),
-        (QColor(44,  62,  80), "fa5s.th-large",     "Tường"),
+        (QColor(44,  62,  80), "mdi.wall",           "Tường"),
         (QColor(52, 152, 219), "fa5s.ambulance",    "Xe cứu thương"),
     ]
 
