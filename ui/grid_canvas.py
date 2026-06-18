@@ -87,9 +87,10 @@ class GridCanvas(QWidget):
     - Zoom (scroll wheel / Ctrl+±) và pan (chuột phải / WASD)
     """
 
-    cell_clicked       = pyqtSignal(int, int)
-    hospital_requested = pyqtSignal(int, int)
-    hover_changed      = pyqtSignal(object)   # (row, col) hoặc None
+    cell_clicked            = pyqtSignal(int, int)
+    hospital_requested      = pyqtSignal(int, int)
+    hospital_edit_requested = pyqtSignal(int, int)
+    hover_changed           = pyqtSignal(object)   # (row, col) hoặc None
 
     def __init__(self, controller, parent=None):
         super().__init__(parent)
@@ -101,6 +102,7 @@ class GridCanvas(QWidget):
         self._panning    = False
         self._last_mouse = QPoint()
         self._hover_cell = None      # (row, col) ô đang hover
+        self._inspector_highlight: list = []
 
         self.setMinimumSize(300, 300)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
@@ -186,6 +188,15 @@ class GridCanvas(QWidget):
             if vis_v: self._draw_overlay(painter, vis_v, QColor(231, 76, 60, 90),   cs, gap, r_abs)
             if vis_o: self._draw_overlay(painter, vis_o, QColor(46, 204, 113, 110), cs, gap, r_abs)
             if vis_p: self._draw_overlay(painter, vis_p, QColor(52, 152, 219, 130), cs, gap, r_abs)
+
+        # ── 4b. Inspector hover highlight ─────────────────────────
+        if self._inspector_highlight:
+            self._draw_overlay(
+                painter,
+                self._inspector_highlight,
+                QColor(100, 200, 255, 75),
+                cs, gap, r_abs,
+            )
 
         # ── 5. Agent trails + positions ───────────────────────────
         for agent in self._ctrl.active_agents:
@@ -474,6 +485,11 @@ class GridCanvas(QWidget):
     def mousePressEvent(self, event):
         self.setFocus()
         if event.button() == Qt.MouseButton.RightButton:
+            row, col = self._to_grid(event.pos())
+            if (row is not None and
+                    self._ctrl.env.grid[row][col] == config.STATE_HOSPITAL):
+                self.hospital_edit_requested.emit(row, col)
+                return
             self._panning    = True
             self._last_mouse = event.pos()
             self.setCursor(QCursor(Qt.CursorShape.ClosedHandCursor))
@@ -567,4 +583,8 @@ class GridCanvas(QWidget):
         self._zoom  = 1.0
         self._pan_x = 20.0
         self._pan_y = 20.0
+        self.update()
+
+    def set_inspector_highlight(self, cells: list):
+        self._inspector_highlight = cells
         self.update()
