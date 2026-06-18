@@ -366,20 +366,6 @@ class GridCanvas(QWidget):
                     tgt = QRectF(x + (w - s) / 2, y + (w - s) / 2, s, s)
                     painter.drawPixmap(tgt, pm, QRectF(pm.rect()))
 
-            # --- VẼ H-TABLE (LRTA*) ---
-            if hasattr(self._ctrl, 'global_h_table') and (r, c) in self._ctrl.global_h_table:
-                h_val = self._ctrl.global_h_table[(r, c)]
-                painter.save()
-                f = QFont("Segoe UI", -1, QFont.Weight.Bold)
-                f.setPixelSize(max(6, int(w * 0.25)))
-                painter.setFont(f)
-                painter.setPen(QColor(255, 215, 0, 220)) # Vàng cam (Gold)
-                painter.drawText(
-                    QRectF(x, y + 2, w - 4, w),
-                    Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop,
-                    f"{h_val:.1f}"
-                )
-                painter.restore()
 
     @staticmethod
     def _draw_brick_pattern(painter: QPainter, rect: QRectF, radius: float):
