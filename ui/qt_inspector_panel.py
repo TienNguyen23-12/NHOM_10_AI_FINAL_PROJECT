@@ -27,6 +27,7 @@ class QtInspectorPanel(QListWidget):
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.setMouseTracking(True)
         self._highlight_data: list[list] = []
+        self._hovered_row: int = -1   # row index đang hover (-1 = không có)
         self._show_welcome()
 
     def _show_welcome(self):
@@ -47,7 +48,6 @@ class QtInspectorPanel(QListWidget):
 
     def load_items(self, items: list[tuple[str, list]]):
         """Load list of (text, cells) pairs. cells is list of (row,col) tuples."""
-        self.highlight_cells_changed.emit([])
         self.clear()
         self._highlight_data = []
         for text, cells in items:
@@ -56,6 +56,11 @@ class QtInspectorPanel(QListWidget):
                          text.startswith("Car #") or
                          text.startswith("━━━"))
             self._add_item(text, cells, is_header)
+        # Giữ highlight nếu chuột vẫn đang hover trên cùng row index
+        if 0 <= self._hovered_row < len(self._highlight_data):
+            self.highlight_cells_changed.emit(self._highlight_data[self._hovered_row])
+        else:
+            self.highlight_cells_changed.emit([])
 
     def load_lines(self, lines: list[str]):
         """Backwards-compat wrapper — no highlight data."""
@@ -83,12 +88,15 @@ class QtInspectorPanel(QListWidget):
     def mouseMoveEvent(self, event):
         item = self.itemAt(event.pos())
         if item is not None:
+            self._hovered_row = self.row(item)
             cells = item.data(Qt.ItemDataRole.UserRole) or []
             self.highlight_cells_changed.emit(cells)
         else:
+            self._hovered_row = -1
             self.highlight_cells_changed.emit([])
         super().mouseMoveEvent(event)
 
     def leaveEvent(self, event):
+        self._hovered_row = -1
         self.highlight_cells_changed.emit([])
         super().leaveEvent(event)
