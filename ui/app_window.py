@@ -4,6 +4,7 @@
 from PyQt6.QtWidgets import QMainWindow, QStackedWidget, QMessageBox
 from PyQt6.QtGui     import QKeySequence, QShortcut
 from PyQt6.QtCore    import Qt
+import qtawesome as qta
 
 from ui.controller       import SimulationController
 from ui.menu_page        import MenuPage
@@ -21,6 +22,7 @@ class AppWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle(
             "MULTI-AGENT EMERGENCY DISPATCH SYSTEM - HCM-UTE")
+        self.setWindowIcon(qta.icon("fa5s.ambulance", color="#E74C3C"))
         self.resize(1280, 780)
         self.setMinimumSize(900, 600)
 
