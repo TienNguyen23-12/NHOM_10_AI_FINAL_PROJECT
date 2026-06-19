@@ -93,9 +93,9 @@ class SimulationController(QObject):
 
         if self.visualize_search:
             self.logger.add_log(f"[DISPATCH] Đang quét thầu cho tai nạn tại {acc_pos}...")
-            self.dispatch_generator = self.dispatcher.evaluate_generator(acc_pos, self.env)
+            self.dispatch_generator = self.dispatcher.evaluate_generator(acc_pos, self.env, self.current_mode)
         else:
-            h_name, path = self.dispatcher.evaluate_and_dispatch(acc_pos, self.env)
+            h_name, path = self.dispatcher.evaluate_and_dispatch(acc_pos, self.env, self.current_mode)
             if h_name and path:
                 agent = self._create_agent(config.HOSPITAL_CONFIG[h_name]["pos"], acc_pos)
                 agent.calculated_path = path
@@ -173,10 +173,27 @@ class SimulationController(QObject):
                     dc = agent.current_pos[1] - old_pos[1]
                     if (dr, dc) in self.global_q_brain.actions:
                         action_idx = self.global_q_brain.actions.index((dr, dc))
-                        reward = -self.env.get_cost(agent.current_pos)
+                        cell_state = self.env.grid[agent.current_pos[0]][agent.current_pos[1]]
+                        
+                        if cell_state == config.STATE_TRAFFIC:
+                            reward = getattr(config, 'REWARD_TRAFFIC', -100)
+                            # Bắn tín hiệu phạt cho TOÀN BỘ 4 hướng đi vào ô kẹt xe này (State-Action Generalization)
+                            for d_r, d_c in self.global_q_brain.actions:
+                                inc_pos = (agent.current_pos[0] - d_r, agent.current_pos[1] - d_c)
+                                if 0 <= inc_pos[0] < config.GRID_SIZE and 0 <= inc_pos[1] < config.GRID_SIZE:
+                                    a_idx = self.global_q_brain.actions.index((d_r, d_c))
+                                    self.global_q_brain.update_q_value(inc_pos, a_idx, reward, agent.current_pos)
+                        elif cell_state == config.STATE_ACCIDENT:
+                            reward = -getattr(config, 'COST_ACCIDENT', 50)
+                        else:
+                            reward = -self.env.get_cost(agent.current_pos)
+                            
                         if agent.current_pos == agent.goal_pos:
                             reward = getattr(config, 'REWARD_GOAL', 100)
+                            
                         self.global_q_brain.update_q_value(old_pos, action_idx, reward, agent.current_pos)
+                        if reward <= -20:
+                            self.logger.add_log(f"[Q-TABLE UPDATE] State: {old_pos}, Action: {(dr,dc)}, Reward: {reward}, New Q: {self.global_q_brain.q_table[old_pos][action_idx]}")
 
         for agent in self.active_agents:
             if agent.is_finished:
@@ -310,6 +327,17 @@ class SimulationController(QObject):
     def toggle_pause(self) -> bool:
         self.is_paused = not self.is_paused
         self.logger.add_log(f"[SYSTEM] Simulation {'PAUSED' if self.is_paused else 'RESUMED'}.")
+        if self.is_paused:
+            count = 0
+            for k, v in self.global_q_brain.q_table.items():
+                if any(x < 0 for x in v):
+                    self.logger.add_log(f"   -> [Q-DEBUG] Tại ô {k} đang bị phạt: {v}")
+                    count += 1
+            if count == 0:
+                self.logger.add_log("   -> [Q-DEBUG] Q-Table TRỐNG (Chưa học được gì).")
+            
+            for i, agent in enumerate(self.active_agents):
+                self.logger.add_log(f"   -> [PATH-DEBUG] Agent {i} lộ trình: {agent.calculated_path}")
         return self.is_paused
 
     def toggle_rush_hour(self) -> int:

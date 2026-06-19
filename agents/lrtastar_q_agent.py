@@ -87,9 +87,9 @@ class LRTALearningAgent(BaseAgent):
 
                 q_pen = 0
                 if app_instance.current_mode == getattr(config, 'MODE_LRTASTAR_Q', 4):
-                    q_vals = app_instance.global_q_brain.q_table.get(current, [0, 0, 0, 0])
+                    q_vals = app_instance.global_q_brain.q_table.get(current, [0.0, 0.0, 0.0, 0.0])
                     raw_q_pen = -q_vals[action_idx] if q_vals[action_idx] < 0 else 0
-                    q_pen = raw_q_pen * getattr(config, 'Q_WEIGHT', 0.2)
+                    q_pen = raw_q_pen * app_instance.global_q_brain.get_dynamic_q_weight()
 
                 f_value = base_cost + q_pen + self.get_h(neighbor)
 
@@ -117,7 +117,12 @@ class LRTALearningAgent(BaseAgent):
             self.move_to(best_next, cost)
 
             if app_instance.current_mode == getattr(config, 'MODE_LRTASTAR_Q', 4):
-                reward = -grid_map.get_cost(self.current_pos)
+                cell_state = grid_map.grid[self.current_pos[0]][self.current_pos[1]]
+                if cell_state == config.STATE_TRAFFIC:
+                    reward = getattr(config, 'REWARD_TRAFFIC', -20)
+                else:
+                    reward = -grid_map.get_cost(self.current_pos)
+                    
                 if self.current_pos == self.goal_pos:
                     reward = getattr(config, 'REWARD_GOAL', 100)
                 app_instance.global_q_brain.update_q_value(old_pos, best_action_idx, reward, self.current_pos)

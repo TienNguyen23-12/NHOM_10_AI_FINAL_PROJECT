@@ -40,7 +40,7 @@ MODE_ASTAR_Q = 3         # A* + Q-Learning
 MODE_LRTASTAR_Q = 4      # LRTA* + Q-Learning
 
 # Hệ số đồng bộ đơn vị Q-Table vào hàm Heuristic (Từ 0.1 đến 1.0)
-Q_WEIGHT = 0.2
+Q_WEIGHT = 0.8
 
 # Hệ số Q-Learning (Ảnh hưởng đến độ "nhớ" của xe)
 GAMMA = 0.9  # Tầm nhìn xa của AI (Discount Factor)
@@ -53,7 +53,7 @@ COST_ACCIDENT = 50   # Phạt cực nặng khi đâm vào vùng nguy hiểm
 
 # --- 5. ĐỊNH NGHĨA PHẦN THƯỞNG (Q-LEARNING REWARDS) ---
 REWARD_STEP = -1       # Chi phí mỗi bước di chuyển
-REWARD_TRAFFIC = -20   # Phạt kẹt xe (Cần thấp hơn COST_TRAFFIC để AI học nhanh hơn)
+REWARD_TRAFFIC = -100  # Phạt kẹt xe bằng với phần thưởng đích (+100) để triệt tiêu lập tức
 REWARD_GOAL = 100      # Phần thưởng khi về đích thành công
 
 # --- 6. CẤU HÌNH HỆ THỐNG ---

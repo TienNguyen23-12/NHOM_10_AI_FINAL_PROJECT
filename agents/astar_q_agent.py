@@ -38,9 +38,9 @@ class AStarQAgent(BaseAgent):
 
                     q_penalty = 0
                     if app_instance.current_mode == getattr(config, 'MODE_ASTAR_Q', 3):
-                        q_values = app_instance.global_q_brain.q_table.get(current, [0, 0, 0, 0])
+                        q_values = app_instance.global_q_brain.q_table.get(current, [0.0, 0.0, 0.0, 0.0])
                         raw_q_pen = -q_values[action_idx] if q_values[action_idx] < 0 else 0
-                        q_penalty = raw_q_pen * getattr(config, 'Q_WEIGHT', 0.2)
+                        q_penalty = raw_q_pen * app_instance.global_q_brain.get_dynamic_q_weight()
 
                     new_g = g + base_cost + q_penalty
                     new_f = new_g + self.heuristic(neighbor)
@@ -73,9 +73,9 @@ class AStarQAgent(BaseAgent):
 
                     q_penalty = 0
                     if app_instance.current_mode == getattr(config, 'MODE_ASTAR_Q', 3):
-                        q_values = app_instance.global_q_brain.q_table.get(current, [0, 0, 0, 0])
+                        q_values = app_instance.global_q_brain.q_table.get(current, [0.0, 0.0, 0.0, 0.0])
                         raw_q_pen = -q_values[action_idx] if q_values[action_idx] < 0 else 0
-                        q_penalty = raw_q_pen * getattr(config, 'Q_WEIGHT', 0.2)
+                        q_penalty = raw_q_pen * app_instance.global_q_brain.get_dynamic_q_weight()
 
                     new_g = g + base_cost + q_penalty
                     new_f = new_g + self.heuristic(neighbor)

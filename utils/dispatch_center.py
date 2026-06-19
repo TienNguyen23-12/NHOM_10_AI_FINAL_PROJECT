@@ -12,7 +12,7 @@ class DispatchCenter:
         self.hospitals = config.HOSPITAL_CONFIG.copy()
         self.current_cars = {k: v["max_cars"] for k, v in self.hospitals.items()}
 
-    def evaluate_and_dispatch(self, acc_pos, grid_map):
+    def evaluate_and_dispatch(self, acc_pos, grid_map, current_mode=3):
         best_hospital = None
         best_cost = float('inf')
         best_path = None
@@ -20,7 +20,7 @@ class DispatchCenter:
         for h_name, h_info in self.hospitals.items():
             if self.current_cars.get(h_name, 0) <= 0: continue
             start = h_info["pos"]
-            path, cost = self._calculate_cost(start, acc_pos, grid_map)
+            path, cost = self._calculate_cost(start, acc_pos, grid_map, current_mode)
             if cost < best_cost:
                 best_cost = cost
                 best_hospital = h_name
@@ -31,7 +31,7 @@ class DispatchCenter:
             return best_hospital, best_path
         return None, None
 
-    def _calculate_cost(self, start, goal, grid_map):
+    def _calculate_cost(self, start, goal, grid_map, current_mode=3):
         open_set = []
         heapq.heappush(open_set, (0, 0, start, [start]))
         visited = set()
@@ -44,14 +44,18 @@ class DispatchCenter:
                 neighbor = (current[0] + dr, current[1] + dc)
                 if grid_map.is_valid_move(neighbor) and neighbor not in visited:
                     base_cost = grid_map.get_cost(neighbor)
-                    q_vals = self.q_brain.q_table.get(current, [0, 0, 0, 0])
-                    q_pen = -q_vals[action_idx] if q_vals[action_idx] < 0 else 0
+                    import config
+                    q_pen = 0
+                    if current_mode in (getattr(config, 'MODE_ASTAR_Q', 3), getattr(config, 'MODE_LRTASTAR_Q', 4)):
+                        q_vals = self.q_brain.q_table.get(current, [0.0, 0.0, 0.0, 0.0])
+                        raw_q_pen = -q_vals[action_idx] if q_vals[action_idx] < 0 else 0
+                        q_pen = raw_q_pen * self.q_brain.get_dynamic_q_weight()
                     new_g = g + base_cost + q_pen
                     h_val = abs(neighbor[0] - goal[0]) + abs(neighbor[1] - goal[1])
                     heapq.heappush(open_set, (new_g + h_val, new_g, neighbor, path + [neighbor]))
         return None, float('inf')
 
-    def evaluate_generator(self, acc_pos, grid_map):
+    def evaluate_generator(self, acc_pos, grid_map, current_mode=3):
         best_hospital = None
         best_cost = float('inf')
         best_path = None
@@ -79,8 +83,12 @@ class DispatchCenter:
                     neighbor = (current[0] + dr, current[1] + dc)
                     if grid_map.is_valid_move(neighbor) and neighbor not in visited:
                         base_cost = grid_map.get_cost(neighbor)
-                        q_vals = self.q_brain.q_table.get(current, [0, 0, 0, 0])
-                        q_pen = -q_vals[action_idx] if q_vals[action_idx] < 0 else 0
+                        import config
+                        q_pen = 0
+                        if current_mode in (getattr(config, 'MODE_ASTAR_Q', 3), getattr(config, 'MODE_LRTASTAR_Q', 4)):
+                            q_vals = self.q_brain.q_table.get(current, [0.0, 0.0, 0.0, 0.0])
+                            raw_q_pen = -q_vals[action_idx] if q_vals[action_idx] < 0 else 0
+                            q_pen = raw_q_pen * self.q_brain.get_dynamic_q_weight()
                         new_g = g + base_cost + q_pen
                         h_val = abs(neighbor[0] - acc_pos[0]) + abs(neighbor[1] - acc_pos[1])
                         heapq.heappush(open_set, (new_g + h_val, new_g, neighbor, path + [neighbor]))
