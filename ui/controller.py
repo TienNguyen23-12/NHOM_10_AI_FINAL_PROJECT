@@ -327,17 +327,6 @@ class SimulationController(QObject):
     def toggle_pause(self) -> bool:
         self.is_paused = not self.is_paused
         self.logger.add_log(f"[SYSTEM] Simulation {'PAUSED' if self.is_paused else 'RESUMED'}.")
-        if self.is_paused:
-            count = 0
-            for k, v in self.global_q_brain.q_table.items():
-                if any(x < 0 for x in v):
-                    self.logger.add_log(f"   -> [Q-DEBUG] Tại ô {k} đang bị phạt: {v}")
-                    count += 1
-            if count == 0:
-                self.logger.add_log("   -> [Q-DEBUG] Q-Table TRỐNG (Chưa học được gì).")
-            
-            for i, agent in enumerate(self.active_agents):
-                self.logger.add_log(f"   -> [PATH-DEBUG] Agent {i} lộ trình: {agent.calculated_path}")
         return self.is_paused
 
     def toggle_rush_hour(self) -> int:
