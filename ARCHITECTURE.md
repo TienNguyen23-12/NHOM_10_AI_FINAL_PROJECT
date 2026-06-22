@@ -14,8 +14,6 @@
 | Lưu trữ | **JSON** (thư viện chuẩn) | Lưu Q-table và bản đồ tùy chỉnh |
 | Cấu trúc dữ liệu | **heapq** | Hàng đợi ưu tiên cho A\* |
 
-> ⚠️ **Lưu ý về migration:** Project ban đầu viết bằng **Pygame**, sau đó đã được **migrate sang PyQt6** theo mô hình **MVC**. `CLAUDE.md` vẫn mô tả kiến trúc Pygame cũ — phần dưới đây phản ánh **trạng thái thực tế hiện tại**.
-
 ### Cài đặt & chạy
 ```bash
 pip install PyQt6 qtawesome
@@ -94,17 +92,8 @@ NHOM_10_AI_FINAL_PROJECT/
 │   └── theme.py             → QSS global + Fusion palette (theme navy/đỏ cấp cứu)
 │
 ├── q_brain_memory.json      → Q-table lưu giữa các phiên
-├── custom_map_layout.json   → Bản đồ tùy chỉnh đã lưu (gồm vị trí bệnh viện)
-│
-└── ⚠️ FILE LEGACY (Pygame cũ — KHÔNG còn dùng bởi main.py):
-    ├── ui/simulation_app.py   (717 dòng, vòng lặp Pygame cũ)
-    ├── ui/ui_manager.py
-    ├── ui/button.py
-    ├── ui/inspector_panel.py
-    └── ui/logger_panel.py
+└── custom_map_layout.json   → Bản đồ tùy chỉnh đã lưu (gồm vị trí bệnh viện)
 ```
-
-> **Code chết:** 5 file legacy trên còn import `pygame` và chỉ tham chiếu lẫn nhau, không nằm trong đồ thị phụ thuộc của `main.py`. Có thể xóa an toàn (nên kiểm tra lại trước khi xóa).
 
 ---
 
@@ -126,7 +115,7 @@ Q_WEIGHT      = 0.2   # Trọng số nhúng Q vào heuristic
 GAMMA         = 0.9   # Discount factor
 LEARNING_RATE = 0.5
 
-COST_EMPTY, COST_TRAFFIC, COST_ACCIDENT = 1, 10, 50   # Chi phí di chuyển
+COST_EMPTY, COST_TRAFFIC, COST_ACCIDENT = 1, 5, 50    # Chi phí di chuyển
 REWARD_STEP, REWARD_TRAFFIC, REWARD_GOAL = -1, -20, 100  # Phần thưởng Q
 ```
 
@@ -219,7 +208,7 @@ def evaluate_and_dispatch(self, acc_pos, grid_map):
 
 ```python
 def get_cost(self, pos):       # Hàm chi phí động
-    if self.grid[r][c] == STATE_TRAFFIC:  return COST_TRAFFIC   # 10
+    if self.grid[r][c] == STATE_TRAFFIC:  return COST_TRAFFIC   # 5
     if self.grid[r][c] == STATE_ACCIDENT: return COST_ACCIDENT  # 50
     return COST_EMPTY                                            # 1
 
@@ -257,4 +246,4 @@ Vẽ toàn bộ lưới bằng `QPainter`: ô bo góc + gradient, icon qtawesome
 
 ---
 
-*Tài liệu sinh tự động từ phân tích codebase — phản ánh nhánh `NhanNguyen` tại thời điểm tổng hợp.*
+*Cập nhật lần cuối: 2026-06-21 — phản ánh trạng thái hiện tại của nhánh `NhanNguyen` (PyQt6 MVC, không còn file legacy Pygame).*
