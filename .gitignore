@@ -9,3 +9,4 @@ env/
 *.md
 .assets/*
 docs/
+CLAUDE.md
